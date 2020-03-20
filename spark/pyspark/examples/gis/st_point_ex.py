@@ -14,31 +14,36 @@
 
 from pyspark.sql import SparkSession
 from arctern_pyspark import register_funcs
+import sys
 
-
-def point_gen():
-    with open('/tmp/points.json', 'w') as file:
-        for i in range(10):
-            file.write('{"x": %f, "y": %f}\n' % (i + 0.1, i + 0.1))
+sys.path.append("/home/shengjh/Apps/spark-3.0.0-preview2/python/pyspark")
 
 
 def run_st_point(spark):
-    points_df = spark.read.json("/tmp/points.json").cache()
-    points_df.createOrReplaceTempView("points")
     register_funcs(spark)
-    spark.sql("select ST_Point(x, y) from points").show()
+    # points_df = spark.read.json("/tmp/points.json")
+    # points_df.cache()
+    data = [(1.9, 9.0)] * 10
+    points_df = spark.createDataFrame(
+        data,
+        ("x", "y"))
+    points_df.createOrReplaceTempView("points")
+    spark.sql("select ST_Point(x, y) from points").cache().show()
+    print(points_df.count())
 
 
 if __name__ == "__main__":
     spark_session = SparkSession \
         .builder \
         .appName("Python Arrow-in-Spark example") \
+        .config("spark.python.profile", "true") \
+        .config("spark.python.profile.dump", "/tmp/pyspark_profile") \
         .getOrCreate()
 
     spark_session.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
-    point_gen()
-
     run_st_point(spark_session)
+
+    spark_session.sparkContext.show_profiles()
 
     spark_session.stop()
