@@ -110,10 +110,6 @@ def ST_Point(x, y):
     end = time.time()
     print("DEBUG: {} run in {}ms".format('ST_Point', (end - start) * 1000))
     return rs.to_pandas()
-    # res = []
-    # res.extend("a" for _ in x)
-    # return pd.Series(res)
-
 
 @pandas_udf("string", PandasUDFType.SCALAR)
 def ST_GeomFromGeoJSON(json):
