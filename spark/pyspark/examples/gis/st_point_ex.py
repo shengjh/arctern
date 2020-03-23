@@ -14,9 +14,6 @@
 
 from pyspark.sql import SparkSession
 from arctern_pyspark import register_funcs
-import sys
-
-sys.path.append("/home/shengjh/Apps/spark-3.0.0-preview2/python/pyspark")
 
 
 def run_st_point(spark):
@@ -37,6 +34,7 @@ if __name__ == "__main__":
         .builder \
         .appName("Python Arrow-in-Spark example") \
         .config("spark.python.profile", "true") \
+        .config("spark.python.profile.dump", "/tmp/pyspark-profile") \
         .getOrCreate()
 
     spark_session.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
