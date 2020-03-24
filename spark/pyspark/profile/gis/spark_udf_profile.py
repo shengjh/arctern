@@ -14,6 +14,8 @@
 
 import os
 import sys
+import time
+
 from arctern_pyspark import register_funcs
 from pyspark.sql import SparkSession
 
@@ -23,11 +25,23 @@ from pyspark.sql import SparkSession
 profile_dump_path = "/tmp/pyspark-profile"
 rows = 10000
 
+
 def count_and_uncache(df):
     df.count()
     df.unpersist()
 
 
+def timmer(fun1):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        res = fun1(*args, **kwargs)
+        stop_time = time.time()
+        print('run time is %s' % (stop_time - start_time))
+        return res
+    return wrapper
+
+
+@timmer
 def run_st_point(spark):
     points_data = []
     points_data.extend([(0.1, 0.1)] * rows)
@@ -50,7 +64,6 @@ def run_st_geomfromgeojson(spark):
     json_df.createOrReplaceTempView("json")
     rs = spark.sql("select ST_GeomFromGeoJSON(json) from json").cache()
     count_and_uncache(rs)
-
 
 
 def run_st_pointfromtext(spark):
@@ -206,9 +219,10 @@ def run_st_make_valid(spark):
     rs = spark.sql("select ST_MakeValid(geos) from make_valid").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'LINESTRING (0 0,10 0,20 0,20 0,30 0)'
-    # assert rs[1][
-    #            0] == 'GEOMETRYCOLLECTION (MULTIPOLYGON (((3 3,1 1,1 5,3 3)),((5 3,7 5,7 1,5 3))),LINESTRING (3 3,5 3))'
+# assert rs[1][
+#            0] == 'GEOMETRYCOLLECTION (MULTIPOLYGON (((3 3,1 1,1 5,3 3)),((5 3,7 5,7 1,5 3))),LINESTRING (3 3,5 3))'
 
 
 def run_st_simplify_preserve_topology(spark):
@@ -225,8 +239,9 @@ def run_st_simplify_preserve_topology(spark):
     rs = spark.sql("select ST_SimplifyPreserveTopology(geos, 10) from simplify_preserve_topology").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'POLYGON ((8 25,28 22,15 11,33 3,56 30,47 44,35 36,43 19,24 39,8 25))'
-    # assert rs[1][0] == 'LINESTRING (250 250,280 290,300 230,340 300,360 260,440 310,470 360,604 286)'
+# assert rs[1][0] == 'LINESTRING (250 250,280 290,300 230,340 300,360 260,440 310,470 360,604 286)'
 
 
 def run_st_polygon_from_envelope(spark):
@@ -244,8 +259,9 @@ def run_st_polygon_from_envelope(spark):
     rs = spark.sql("select ST_PolygonFromEnvelope(min_x, min_y, max_x, max_y) from polygon_from_envelope").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'POLYGON ((1 3,1 7,5 7,5 3,1 3))'
-    # assert rs[1][0] == 'POLYGON ((2 4,2 8,6 8,6 4,2 4))'
+# assert rs[1][0] == 'POLYGON ((2 4,2 8,6 8,6 4,2 4))'
 
 
 def run_st_contains(spark):
@@ -264,8 +280,9 @@ def run_st_contains(spark):
     rs = spark.sql("select ST_Contains(left, right) from contains").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0]
-    # assert not rs[1][0]
+# assert not rs[1][0]
 
 
 def run_st_intersects(spark):
@@ -284,8 +301,9 @@ def run_st_intersects(spark):
     rs = spark.sql("select ST_Intersects(left, right) from intersects").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0]
-    # assert not rs[1][0]
+# assert not rs[1][0]
 
 
 def run_st_within(spark):
@@ -304,8 +322,9 @@ def run_st_within(spark):
     rs = spark.sql("select ST_Within(left, right) from within").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0]
-    # assert not rs[1][0]
+# assert not rs[1][0]
 
 
 def run_st_distance(spark):
@@ -338,8 +357,9 @@ def run_st_area(spark):
     rs = spark.sql("select ST_Area(geos) from area").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 200
-    # assert rs[1][0] == 600
+# assert rs[1][0] == 600
 
 
 def run_st_centroid(spark):
@@ -380,8 +400,9 @@ def run_st_hausdorffdistance(spark):
     rs = spark.sql("select ST_HausdorffDistance(geo1,geo2) from hausdorff").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 1
-    # assert rs[1][0] == 1
+# assert rs[1][0] == 1
 
 
 def run_st_convexhull(spark):
@@ -394,8 +415,9 @@ def run_st_convexhull(spark):
     rs = spark.sql("select ST_convexhull(geos) from convexhull").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'LINESTRING (1 1,0 0)'
-    # assert rs[1][0] == 'POLYGON ((1 -2,-2.0 1.5,1 3,2.5 3.0,1 -2))'
+# assert rs[1][0] == 'POLYGON ((1 -2,-2.0 1.5,1 3,2.5 3.0,1 -2))'
 
 
 def run_st_npoints(spark):
@@ -408,8 +430,9 @@ def run_st_npoints(spark):
     rs = spark.sql("select ST_NPoints(geos) from npoints").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 4
-    # assert rs[1][0] == 4
+# assert rs[1][0] == 4
 
 
 def run_st_envelope(spark):
@@ -428,14 +451,15 @@ def run_st_envelope(spark):
     rs = spark.sql("select ST_Envelope(geos) from envelope").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'POINT (10 10)'
-    # assert rs[1][0] == 'LINESTRING (0 0,0 10)'
-    # assert rs[2][0] == 'LINESTRING (0 0,10 0)'
-    # assert rs[3][0] == 'POLYGON ((0 0,0 10,10 10,10 0,0 0))'
-    # assert rs[4][0] == 'POLYGON ((0 0,0 10,10 10,10 0,0 0))'
-    # assert rs[5][0] == 'POLYGON ((0 0,0 5,10 5,10 0,0 0))'
-    # assert rs[6][0] == 'POLYGON ((0 0,0 10,10 10,10 0,0 0))'
-    # assert rs[7][0] == 'POLYGON ((0 0,0 20,20 20,20 0,0 0))'
+# assert rs[1][0] == 'LINESTRING (0 0,0 10)'
+# assert rs[2][0] == 'LINESTRING (0 0,10 0)'
+# assert rs[3][0] == 'POLYGON ((0 0,0 10,10 10,10 0,0 0))'
+# assert rs[4][0] == 'POLYGON ((0 0,0 10,10 10,10 0,0 0))'
+# assert rs[5][0] == 'POLYGON ((0 0,0 5,10 5,10 0,0 0))'
+# assert rs[6][0] == 'POLYGON ((0 0,0 10,10 10,10 0,0 0))'
+# assert rs[7][0] == 'POLYGON ((0 0,0 20,20 20,20 0,0 0))'
 
 
 def run_st_buffer(spark):
@@ -458,32 +482,33 @@ def run_st_union_aggr(spark):
     rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr1").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'POLYGON ((1 1,1 2,2 2,3 2,3 1,2 1,1 1))'
 
-    # test_data2 = []
-    # test_data2.extend([('POLYGON ((0 0,4 0,4 4,0 4,0 0))',)])
-    # test_data2.extend([('POLYGON ((3 1,5 1,5 2,3 2,3 1))',)])
-    # test_data2.extend(test_data2 * int(rows / 2))
-    # union_aggr_df2 = spark.createDataFrame(data=test_data2, schema=['geos']).cache()
-    # union_aggr_df2.createOrReplaceTempView("union_aggr2")
-    # rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr2").cache()
-    # assert rs[0][0] == 'POLYGON ((4 1,4 0,0 0,0 4,4 4,4 2,5 2,5 1,4 1))'
-    #
-    # test_data3 = []
-    # test_data3.extend([('POLYGON ((0 0,4 0,4 4,0 4,0 0))',)])
-    # test_data3.extend([('POLYGON ((5 1,7 1,7 2,5 2,5 1))',)])
-    # union_aggr_df3 = spark.createDataFrame(data=test_data3, schema=['geos']).cache()
-    # union_aggr_df3.createOrReplaceTempView("union_aggr3")
-    # rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr3").cache()
-    # assert rs[0][0] == 'MULTIPOLYGON (((0 0,4 0,4 4,0 4,0 0)),((5 1,7 1,7 2,5 2,5 1)))'
-    #
-    # test_data4 = []
-    # test_data4.extend([('POLYGON ((0 0,0 4,4 4,4 0,0 0))',)])
-    # test_data4.extend([('POINT (2 3)',)])
-    # union_aggr_df4 = spark.createDataFrame(data=test_data4, schema=['geos']).cache()
-    # union_aggr_df4.createOrReplaceTempView("union_aggr4")
-    # rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr4").cache()
-    # assert rs[0][0] == 'POLYGON ((0 0,0 4,4 4,4 0,0 0))'
+# test_data2 = []
+# test_data2.extend([('POLYGON ((0 0,4 0,4 4,0 4,0 0))',)])
+# test_data2.extend([('POLYGON ((3 1,5 1,5 2,3 2,3 1))',)])
+# test_data2.extend(test_data2 * int(rows / 2))
+# union_aggr_df2 = spark.createDataFrame(data=test_data2, schema=['geos']).cache()
+# union_aggr_df2.createOrReplaceTempView("union_aggr2")
+# rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr2").cache()
+# assert rs[0][0] == 'POLYGON ((4 1,4 0,0 0,0 4,4 4,4 2,5 2,5 1,4 1))'
+#
+# test_data3 = []
+# test_data3.extend([('POLYGON ((0 0,4 0,4 4,0 4,0 0))',)])
+# test_data3.extend([('POLYGON ((5 1,7 1,7 2,5 2,5 1))',)])
+# union_aggr_df3 = spark.createDataFrame(data=test_data3, schema=['geos']).cache()
+# union_aggr_df3.createOrReplaceTempView("union_aggr3")
+# rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr3").cache()
+# assert rs[0][0] == 'MULTIPOLYGON (((0 0,4 0,4 4,0 4,0 0)),((5 1,7 1,7 2,5 2,5 1)))'
+#
+# test_data4 = []
+# test_data4.extend([('POLYGON ((0 0,0 4,4 4,4 0,0 0))',)])
+# test_data4.extend([('POINT (2 3)',)])
+# union_aggr_df4 = spark.createDataFrame(data=test_data4, schema=['geos']).cache()
+# union_aggr_df4.createOrReplaceTempView("union_aggr4")
+# rs = spark.sql("select ST_Union_Aggr(geos) from union_aggr4").cache()
+# assert rs[0][0] == 'POLYGON ((0 0,0 4,4 4,4 0,0 0))'
 
 
 def run_st_envelope_aggr(spark):
@@ -496,6 +521,7 @@ def run_st_envelope_aggr(spark):
     rs = spark.sql("select ST_Envelope_Aggr(geos) from envelope_aggr").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'POLYGON ((0 0,0 4,7 4,7 0,0 0))'
 
 
@@ -507,6 +533,7 @@ def run_st_transform(spark):
     rs = spark.sql("select ST_Transform(geos, 'epsg:4326', 'epsg:3857') from buffer").cache()
     count_and_uncache(rs)
 
+
 # assert rs[0][0] == 'POINT (1113194.90793274 1118889.97485796)'
 
 
@@ -517,6 +544,7 @@ def run_st_curvetoline(spark):
     buffer_df.createOrReplaceTempView("buffer")
     rs = spark.sql("select ST_CurveToLine(geos) from buffer").cache()
     count_and_uncache(rs)
+
 
 # assert str(rs[0][0]).startswith("POLYGON")
 
@@ -555,39 +583,39 @@ if __name__ == "__main__":
     register_funcs(spark_session)
 
     run_st_point(spark_session)
-    run_st_intersection(spark_session)
-    run_st_isvalid(spark_session)
-    run_st_equals(spark_session)
-    run_st_touches(spark_session)
-    run_st_overlaps(spark_session)
-    run_st_crosses(spark_session)
-    run_st_issimple(spark_session)
-    run_st_geometry_type(spark_session)
-    run_st_make_valid(spark_session)
-    run_st_simplify_preserve_topology(spark_session)
-    run_st_polygon_from_envelope(spark_session)
-    run_st_contains(spark_session)
-    run_st_intersects(spark_session)
-    run_st_within(spark_session)
-    run_st_distance(spark_session)
-    run_st_area(spark_session)
-    run_st_centroid(spark_session)
-    run_st_length(spark_session)
-    run_st_hausdorffdistance(spark_session)
-    run_st_convexhull(spark_session)
-    run_st_npoints(spark_session)
-    run_st_envelope(spark_session)
-    run_st_buffer(spark_session)
-    run_st_union_aggr(spark_session)
-    run_st_envelope_aggr(spark_session)
-    run_st_transform(spark_session)
-    run_st_curvetoline(spark_session)
-    run_st_geomfromgeojson(spark_session)
-    run_st_pointfromtext(spark_session)
-    run_st_polygonfromtext(spark_session)
-    run_st_linestringfromtext(spark_session)
-    run_st_geomfromwkt(spark_session)
-    run_st_geomfromtext(spark_session)
-    run_st_astext(spark_session)
+    # run_st_intersection(spark_session)
+    # run_st_isvalid(spark_session)
+    # run_st_equals(spark_session)
+    # run_st_touches(spark_session)
+    # run_st_overlaps(spark_session)
+    # run_st_crosses(spark_session)
+    # run_st_issimple(spark_session)
+    # run_st_geometry_type(spark_session)
+    # run_st_make_valid(spark_session)
+    # run_st_simplify_preserve_topology(spark_session)
+    # run_st_polygon_from_envelope(spark_session)
+    # run_st_contains(spark_session)
+    # run_st_intersects(spark_session)
+    # run_st_within(spark_session)
+    # run_st_distance(spark_session)
+    # run_st_area(spark_session)
+    # run_st_centroid(spark_session)
+    # run_st_length(spark_session)
+    # run_st_hausdorffdistance(spark_session)
+    # run_st_convexhull(spark_session)
+    # run_st_npoints(spark_session)
+    # run_st_envelope(spark_session)
+    # run_st_buffer(spark_session)
+    # run_st_union_aggr(spark_session)
+    # run_st_envelope_aggr(spark_session)
+    # run_st_transform(spark_session)
+    # run_st_curvetoline(spark_session)
+    # run_st_geomfromgeojson(spark_session)
+    # run_st_pointfromtext(spark_session)
+    # run_st_polygonfromtext(spark_session)
+    # run_st_linestringfromtext(spark_session)
+    # run_st_geomfromwkt(spark_session)
+    # run_st_geomfromtext(spark_session)
+    # run_st_astext(spark_session)
 
     spark_session.stop()
