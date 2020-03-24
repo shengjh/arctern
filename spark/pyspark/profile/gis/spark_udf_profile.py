@@ -49,7 +49,7 @@ def run_st_point(spark):
     # rs has one column and ten row
     # rs[0] represent 1st row
     # rs[0][0] represent 1st column of 1st row
-    count_and_uncache("select ST_Point(x, y) from points")
+    count_and_uncache(spark, "select ST_Point(x, y) from points")
 
 
 # def run_st_geomfromgeojson(spark):
