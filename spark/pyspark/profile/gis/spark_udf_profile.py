@@ -501,6 +501,7 @@ def parse_args(argv):
             global profile_dump_path
             profile_dump_path = arg
     profile_dump_path = os.path.join(profile_dump_path, str(rows))
+    os.mkdir(profile_dump_path)
 
 
 if __name__ == "__main__":
