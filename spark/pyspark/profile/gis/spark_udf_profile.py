@@ -24,6 +24,7 @@ from pyspark.sql import SparkSession
 
 profile_dump_path = "/tmp/pyspark-profile"
 rows = 10000
+test_name = []
 
 
 def timmer(fun1):
@@ -50,6 +51,7 @@ def count_and_uncache(spark, sql):
     print("uncahce cost time is %s ", dur)
     # df.count()
     # df.unpersist()
+
 
 def run_st_point(spark):
     points_data = []
@@ -490,7 +492,7 @@ def run_st_curvetoline(spark):
 def parse_args(argv):
     import sys, getopt
     try:
-        opts, args = getopt.getopt(argv, "hr:p:", ["rows=", "path="])
+        opts, args = getopt.getopt(argv, "hr:p:t:", ["rows=", "path=", "test name"])
     except getopt.GetoptError:
         print('spark_udf_profile.py -r <rows> -p <dump_path>')
         sys.exit(2)
@@ -504,6 +506,9 @@ def parse_args(argv):
         elif opt in ("-p", "--path"):
             global profile_dump_path
             profile_dump_path = arg
+        elif opt in ("-t", "--test"):
+            global test_name
+            test_name = arg.split(',')
     profile_dump_path = os.path.join(profile_dump_path, str(rows))
     if not os.path.exists(profile_dump_path):
         os.mkdir(profile_dump_path)
@@ -522,9 +527,49 @@ if __name__ == "__main__":
 
     register_funcs(spark_session)
 
+    funcs = {
+        'st_point': run_st_area,
+        'st_intersection': run_st_intersection,
+        'st_isvalid': run_st_isvalid,
+        'st_equals': run_st_equals,
+        'st_touches': run_st_touches,
+        'st_overlaps': run_st_overlaps,
+        'st_crosses': run_st_crosses,
+        'st_issimple': run_st_issimple,
+        'st_geometry_type': run_st_geometry_type,
+        'st_make_valid': run_st_make_valid,
+        'st_simplify_preserve_topology': run_st_simplify_preserve_topology,
+        'st_polygon_from_envelope': run_st_polygon_from_envelope,
+        'st_contains': run_st_contains,
+        'st_intersects': run_st_intersects,
+        'st_within': run_st_within,
+        'st_distance': run_st_distance,
+        'st_area': run_st_area,
+        'st_centroid': run_st_centroid,
+        'st_length': run_st_length,
+        'st_hausdorffdistance': run_st_hausdorffdistance,
+        'st_convexhull': run_st_convexhull,
+        'st_npoints': run_st_npoints,
+        'st_envelope': run_st_envelope,
+        'st_buffer': run_st_buffer,
+        'st_union_aggr': run_st_union_aggr,
+        'st_envelope_aggr': run_st_envelope_aggr,
+        'st_transform': run_st_transform,
+        'st_curvetoline': run_st_curvetoline,
+        'st_geomfromgeojson': run_st_geomfromgeojson,
+        'st_pointfromtext': run_st_pointfromtext,
+        'st_polygonfromtext': run_st_polygonfromtext,
+        'st_linestringfromtext': run_st_linestringfromtext,
+        'st_geomfromwkt': run_st_geomfromwkt,
+        'st_geomfromtext': run_st_geomfromtext,
+        'st_astext': run_st_astext,
+    }
+
+    test_name = test_name or funcs.keys()
+    for test in test_name:
+        funcs[test](spark_session)
+
     # run_st_point(spark_session)
-    # spark_session.sparkContext.show_profiles()
-    # spark_session.sparkContext.dump_profiles(profile_dump_path)
     # run_st_intersection(spark_session)
     # run_st_isvalid(spark_session)
     # run_st_equals(spark_session)
@@ -548,16 +593,16 @@ if __name__ == "__main__":
     # run_st_npoints(spark_session)
     # run_st_envelope(spark_session)
     # run_st_buffer(spark_session)
-    run_st_union_aggr(spark_session)
-    run_st_envelope_aggr(spark_session)
-    run_st_transform(spark_session)
-    run_st_curvetoline(spark_session)
-    run_st_geomfromgeojson(spark_session)
-    run_st_pointfromtext(spark_session)
-    run_st_polygonfromtext(spark_session)
-    run_st_linestringfromtext(spark_session)
-    run_st_geomfromwkt(spark_session)
-    run_st_geomfromtext(spark_session)
-    run_st_astext(spark_session)
+    # run_st_union_aggr(spark_session)
+    # run_st_envelope_aggr(spark_session)
+    # run_st_transform(spark_session)
+    # run_st_curvetoline(spark_session)
+    # run_st_geomfromgeojson(spark_session)
+    # run_st_pointfromtext(spark_session)
+    # run_st_polygonfromtext(spark_session)
+    # run_st_linestringfromtext(spark_session)
+    # run_st_geomfromwkt(spark_session)
+    # run_st_geomfromtext(spark_session)
+    # run_st_astext(spark_session)
 
     spark_session.stop()
