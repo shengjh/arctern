@@ -573,14 +573,17 @@ if __name__ == "__main__":
         .builder \
         .appName("Python Arrow-in-Spark profile") \
         .config("spark.python.profile", "true") \
-        .config("spark.python.profile.dump", profile_dump_path) \
         .getOrCreate()
+        # .config("spark.python.profile.dump", profile_dump_path) \
+        # .getOrCreate()
 
     spark_session.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
     register_funcs(spark_session)
 
     run_st_point(spark_session)
+    # spark_session.sparkContext.show_profiles()
+    spark_session.sparkContext.dump_profiles(profile_dump_path)
     # run_st_intersection(spark_session)
     # run_st_isvalid(spark_session)
     # run_st_equals(spark_session)
