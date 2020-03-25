@@ -31,7 +31,10 @@ def timmer(fun1):
         start_time = time.time()
         res = fun1(*args, **kwargs)
         stop_time = time.time()
-        print('run time is %s' % (stop_time - start_time))
+        dur = stop_time - start_time
+        print('run time is %s' % dur)
+        with open(os.path.join(profile_dump_path, "timmer.txt"), "a") as f:
+            f.write(str(dur) + "\n")
         return res
     return wrapper
 
