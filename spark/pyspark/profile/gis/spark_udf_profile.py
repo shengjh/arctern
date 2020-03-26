@@ -35,9 +35,11 @@ def timmer(fun1):
         dur = stop_time - start_time
         print('run time is %s' % dur)
         with open(os.path.join(profile_dump_path, "timmer.txt"), "a") as f:
+            f.write(args[1].split(" ")[1] + " ")
             f.write(str(dur) + "\n")
         return res
     return wrapper
+
 
 @timmer
 def count_and_uncache(spark, sql):
