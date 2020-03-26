@@ -219,12 +219,27 @@ def run_st_geometry_type(spark):
     count_and_uncache(spark, sql)
 
 
+# def run_st_make_valid(spark):
+#     test_data = []
+#     test_data.extend([('LINESTRING(0 0, 10 0, 20 0, 20 0, 30 0)',)])
+#     test_data.extend([('POLYGON((1 5, 1 1, 3 3, 5 3, 7 1, 7 5, 5 3, 3 3, 1 5))',)])
+#     test_data.extend(test_data * int(rows / 2))
+#     make_valid_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
+#     make_valid_df.createOrReplaceTempView("make_valid")
+#     sql = "select ST_MakeValid(geos) from make_valid"
+#     count_and_uncache(spark, sql)
+
 def run_st_make_valid(spark):
     test_data = []
     test_data.extend([('LINESTRING(0 0, 10 0, 20 0, 20 0, 30 0)',)])
-    test_data.extend([('POLYGON((1 5, 1 1, 3 3, 5 3, 7 1, 7 5, 5 3, 3 3, 1 5))',)])
     test_data.extend(test_data * int(rows / 2))
     make_valid_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
+
+    test_data = []
+    test_data.extend([('POLYGON((1 5, 1 1, 3 3, 5 3, 7 1, 7 5, 5 3, 3 3, 1 5))',)])
+    test_data.extend(test_data * int(rows / 2))
+    make_valid_df.union(spark.createDataFrame(data=test_data, schema=['geos'])).cache()
+
     make_valid_df.createOrReplaceTempView("make_valid")
     sql = "select ST_MakeValid(geos) from make_valid"
     count_and_uncache(spark, sql)
