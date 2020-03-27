@@ -559,7 +559,7 @@ def parse_args(argv):
             test_name = arg.split(',')
     profile_dump_path = os.path.join(profile_dump_path, str(rows))
     if not os.path.exists(profile_dump_path):
-        os.mkdir(profile_dump_path)
+        os.makedirs(profile_dump_path)
 
 
 if __name__ == "__main__":
