@@ -545,7 +545,7 @@ if __name__ == "__main__":
     register_funcs(spark_session)
 
     funcs = {
-        'st_point': run_st_area,
+        'st_point': run_st_point,
         'st_intersection': run_st_intersection,
         'st_isvalid': run_st_isvalid,
         'st_equals': run_st_equals,
