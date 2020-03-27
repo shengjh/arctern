@@ -53,13 +53,22 @@ def count_and_uncache(spark, sql):
     print("uncahce cost time is %s ", dur)
 
 
+def calculate(spark, sql):
+    df = spark.sql(sql)
+    df.createOrReplaceTempView("df")
+    spark.sql("CACHE TABLE df")
+    start_time = time.time()
+    spark.sql("UNCACHE TABLE df")
+
+
 def run_st_point(spark):
     points_data = []
     points_data.extend([(0.1, 0.1)] * rows)
     points_df = spark.createDataFrame(data=points_data, schema=["x", "y"]).cache()
     points_df.createOrReplaceTempView("points")
-    points_df.show()
-    count_and_uncache(spark, "select ST_Point(x, y) from points")
+    sql = "select ST_Point(x, y) from points"
+    calculate(spark, sql)
+    count_and_uncache(spark, sql)
 
 
 def run_st_geomfromgeojson(spark):
@@ -71,7 +80,7 @@ def run_st_geomfromgeojson(spark):
     json_df = spark.createDataFrame(data=test_data, schema=["json"]).cache()
     json_df.createOrReplaceTempView("json")
     sql = "select ST_GeomFromGeoJSON(json) from json"
-    json_df.show()
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -80,8 +89,8 @@ def run_st_pointfromtext(spark):
     test_data.extend([('POINT (30 10)',)] * rows)
     data_df = spark.createDataFrame(data=test_data, schema=["data"]).cache()
     data_df.createOrReplaceTempView("data")
-    data_df.show()
     sql = "select ST_PointFromText(data) from data"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -90,8 +99,8 @@ def run_st_polygonfromtext(spark):
     test_data.extend([('POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',)] * rows)
     data_df = spark.createDataFrame(data=test_data, schema=["data"]).cache()
     data_df.createOrReplaceTempView("data")
-    data_df.show()
     sql = "select ST_PolygonFromText(data) from data"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -100,8 +109,8 @@ def run_st_astext(spark):
     test_data.extend([('POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',)] * rows)
     data_df = spark.createDataFrame(data=test_data, schema=["data"]).cache()
     data_df.createOrReplaceTempView("data")
-    data_df.show()
     sql = "select ST_AsText(ST_PolygonFromText(data)) from data"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -110,8 +119,8 @@ def run_st_precision_reduce(spark):
     test_data.extend([('POINT (10.777 11.888)',)] * rows)
     precision_reduce_df = spark.createDataFrame(data=test_data, schema=["geos"]).cache()
     precision_reduce_df.createOrReplaceTempView("precision_reduce")
-    precision_reduce_df.show()
     sql = "select ST_PrecisionReduce(geos, 4) from precision_reduce"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -120,8 +129,8 @@ def run_st_linestringfromtext(spark):
     test_data.extend([('LINESTRING (0 0, 0 1, 1 1, 1 0)',)] * rows)
     data_df = spark.createDataFrame(data=test_data, schema=["data"]).cache()
     data_df.createOrReplaceTempView("data")
-    data_df.show()
     sql = "select ST_LineStringFromText(data) from data"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -130,8 +139,8 @@ def run_st_geomfromwkt(spark):
     test_data.extend([('POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',)] * rows)
     data_df = spark.createDataFrame(data=test_data, schema=["data"]).cache()
     data_df.createOrReplaceTempView("data")
-    data_df.show()
     sql = "select ST_GeomFromWKT(data) from data"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -140,8 +149,8 @@ def run_st_geomfromtext(spark):
     test_data.extend([('POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',)] * rows)
     data_df = spark.createDataFrame(data=test_data, schema=["data"]).cache()
     data_df.createOrReplaceTempView("data")
-    data_df.show()
     sql = "select ST_GeomFromText(data) from data"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -150,8 +159,8 @@ def run_st_intersection(spark):
     test_data.extend([('POINT(0 0)', 'LINESTRING ( 2 0, 0 2 )')] * rows)
     intersection_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     intersection_df.createOrReplaceTempView("intersection")
-    intersection_df.show()
     sql = "select ST_Intersection(left, right) from intersection"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -160,8 +169,8 @@ def run_st_isvalid(spark):
     test_data.extend([('POINT (30 10)',)] * rows)
     valid_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     valid_df.createOrReplaceTempView("valid")
-    valid_df.show()
     sql = "select ST_IsValid(geos) from valid"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -170,8 +179,8 @@ def run_st_equals(spark):
     test_data.extend([('LINESTRING(0 0, 10 10)', 'LINESTRING(0 0, 5 5, 10 10)')] * rows)
     equals_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     equals_df.createOrReplaceTempView("equals")
-    equals_df.show()
     sql = "select ST_Equals(left, right) from equals"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -180,8 +189,8 @@ def run_st_touches(spark):
     test_data.extend([('LINESTRING(0 0, 1 1, 0 2)', 'POINT(1 1)')] * rows)
     touches_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     touches_df.createOrReplaceTempView("touches")
-    touches_df.show()
     sql = "select ST_Touches(left, right) from touches"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -192,8 +201,8 @@ def run_st_overlaps(spark):
     test_data.extend(test_data * int(rows / 2))
     overlaps_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     overlaps_df.createOrReplaceTempView("overlaps")
-    overlaps_df.show()
     sql = "select ST_Overlaps(left, right) from overlaps"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -204,8 +213,8 @@ def run_st_crosses(spark):
     test_data.extend(test_data * int(rows / 2))
     crosses_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     crosses_df.createOrReplaceTempView("crosses")
-    crosses_df.show()
     sql = "select ST_Crosses(left, right) from crosses"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -216,8 +225,8 @@ def run_st_issimple(spark):
     test_data.extend(test_data * int(rows / 2))
     simple_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     simple_df.createOrReplaceTempView("simple")
-    simple_df.show()
     sql = "select ST_IsSimple(geos) from simple"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -228,8 +237,8 @@ def run_st_geometry_type(spark):
     test_data.extend(test_data * int(rows / 2))
     geometry_type_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     geometry_type_df.createOrReplaceTempView("geometry_type")
-    geometry_type_df.show()
     sql = "select ST_GeometryType(geos) from geometry_type"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -254,9 +263,9 @@ def run_st_make_valid(spark):
     test_data.extend(test_data * int(rows / 2))
     make_valid_df.union(spark.createDataFrame(data=test_data, schema=['geos'])).cache()
 
-    make_valid_df.show()
     make_valid_df.createOrReplaceTempView("make_valid")
     sql = "select ST_MakeValid(geos) from make_valid"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -271,8 +280,8 @@ def run_st_simplify_preserve_topology(spark):
     test_data.extend(test_data * int(rows / 2))
     simplify_preserve_topology_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     simplify_preserve_topology_df.createOrReplaceTempView("simplify_preserve_topology")
-    simplify_preserve_topology_df.show()
     sql = "select ST_SimplifyPreserveTopology(geos, 10) from simplify_preserve_topology"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -288,8 +297,8 @@ def run_st_polygon_from_envelope(spark):
     polygon_from_envelope_df = spark.createDataFrame(data=test_data,
                                                      schema=['min_x', 'min_y', 'max_x', 'max_y']).cache()
     polygon_from_envelope_df.createOrReplaceTempView('polygon_from_envelope')
-    polygon_from_envelope_df.show()
     sql = "select ST_PolygonFromEnvelope(min_x, min_y, max_x, max_y) from polygon_from_envelope"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -306,8 +315,8 @@ def run_st_contains(spark):
     test_data.extend(test_data * int(rows / 2))
     contains_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     contains_df.createOrReplaceTempView("contains")
-    contains_df.show()
     sql = "select ST_Contains(left, right) from contains"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -324,8 +333,8 @@ def run_st_intersects(spark):
     test_data.extend(test_data * int(rows / 2))
     intersects_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     intersects_df.createOrReplaceTempView("intersects")
-    intersects_df.show()
     sql = "select ST_Intersects(left, right) from intersects"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -342,8 +351,8 @@ def run_st_within(spark):
     test_data.extend(test_data * int(rows / 2))
     within_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     within_df.createOrReplaceTempView("within")
-    within_df.show()
     sql = "select ST_Within(left, right) from within"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -360,8 +369,8 @@ def run_st_distance(spark):
     test_data.extend(test_data * int(rows / 2))
     distance_df = spark.createDataFrame(data=test_data, schema=["left", "right"]).cache()
     distance_df.createOrReplaceTempView("distance")
-    distance_df.show()
     sql = "select ST_Distance(left, right) from distance"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -372,8 +381,8 @@ def run_st_area(spark):
     test_data.extend(test_data * int(rows / 2))
     area_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     area_df.createOrReplaceTempView("area")
-    area_df.show()
     sql = "select ST_Area(geos) from area"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -384,8 +393,8 @@ def run_st_centroid(spark):
     test_data.extend(test_data * int(rows / 2))
     centroid_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     centroid_df.createOrReplaceTempView("centroid")
-    centroid_df.show()
     sql = "select ST_Centroid(geos) from centroid"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -396,8 +405,8 @@ def run_st_length(spark):
     test_data.extend(test_data * int(rows / 2))
     length_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     length_df.createOrReplaceTempView("length")
-    length_df.show()
     sql = "select ST_Length(geos) from length"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -408,8 +417,8 @@ def run_st_hausdorffdistance(spark):
     test_data.extend(test_data * int(rows / 2))
     hausdorff_df = spark.createDataFrame(data=test_data, schema=["geo1", "geo2"]).cache()
     hausdorff_df.createOrReplaceTempView("hausdorff")
-    hausdorff_df.show()
     sql = "select ST_HausdorffDistance(geo1,geo2) from hausdorff"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -420,8 +429,8 @@ def run_st_convexhull(spark):
     test_data.extend(test_data * int(rows / 2))
     convexhull_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     convexhull_df.createOrReplaceTempView("convexhull")
-    convexhull_df.show()
     sql = "select ST_convexhull(geos) from convexhull"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -432,8 +441,8 @@ def run_st_npoints(spark):
     test_data.extend(test_data * int(rows / 2))
     npoints_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     npoints_df.createOrReplaceTempView("npoints")
-    npoints_df.show()
     sql = "select ST_NPoints(geos) from npoints"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -450,8 +459,8 @@ def run_st_envelope(spark):
     test_data.extend(test_data * int(rows / 8))
     envelope_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     envelope_df.createOrReplaceTempView("envelope")
-    envelope_df.show()
     sql = "select ST_Envelope(geos) from envelope"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -460,8 +469,8 @@ def run_st_buffer(spark):
     test_data.extend([('POLYGON((0 0,1 0,1 1,0 0))',)] * rows)
     buffer_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     buffer_df.createOrReplaceTempView("buffer")
-    buffer_df.show()
     sql = "select ST_Buffer(geos, 1.2) from buffer"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -472,8 +481,8 @@ def run_st_union_aggr(spark):
     test_data1.extend(test_data1 * int(rows / 2))
     union_aggr_df1 = spark.createDataFrame(data=test_data1, schema=['geos']).cache()
     union_aggr_df1.createOrReplaceTempView("union_aggr1")
-    union_aggr_df1.show()
     sql = "select ST_Union_Aggr(geos) from union_aggr1"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -512,8 +521,8 @@ def run_st_envelope_aggr(spark):
     test_data.extend(test_data * int(rows / 2))
     envelope_aggr_df = spark.createDataFrame(data=test_data, schema=['geos'])
     envelope_aggr_df.createOrReplaceTempView('envelope_aggr')
-    envelope_aggr_df.show()
     sql = "select ST_Envelope_Aggr(geos) from envelope_aggr"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -522,8 +531,8 @@ def run_st_transform(spark):
     test_data.extend([('POINT (10 10)',)] * rows)
     buffer_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     buffer_df.createOrReplaceTempView("buffer")
-    buffer_df.show()
     sql = "select ST_Transform(geos, 'epsg:4326', 'epsg:3857') from buffer"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
@@ -532,8 +541,8 @@ def run_st_curvetoline(spark):
     test_data.extend([('CURVEPOLYGON(CIRCULARSTRING(0 0, 4 0, 4 4, 0 4, 0 0))',)] * rows)
     buffer_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     buffer_df.createOrReplaceTempView("buffer")
-    buffer_df.show()
     sql = "select ST_CurveToLine(geos) from buffer"
+    calculate(spark, sql)
     count_and_uncache(spark, sql)
 
 
