@@ -97,6 +97,8 @@ set(third_party_libs
         gdal
         arrow
         miniz
+		#TODO(sjh) Profiler should setted when profiler enabled
+		profiler
         )
 
 set_property(TARGET arctern PROPERTY CUDA_STANDARD 14)

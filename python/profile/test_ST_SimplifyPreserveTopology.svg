@@ -1,0 +1,419 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="406" onload="init(evt)" viewBox="0 0 1200 406" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
+#title { text-anchor:middle; font-size:17px; }
+#search { opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[var nametype = 'Function:';
+var fontsize = 12;
+var fontwidth = 0.59;
+var xpad = 10;
+var inverted = true;
+var searchcolor = 'rgb(230,0,230)';
+var fluiddrawing = true;
+var truncate_text_right = false;]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+          svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            var el = frames.children;
+            for(var i = 0; i < el.length; i++) {
+                update_text(el[i]);
+            }
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad - 100;
+            matchedtxt.attributes.x.value = svgWidth - xpad - 100;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+            var params = get_params()
+            params.x = el.attributes._orig_x.value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["_orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("_orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["_orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+    e.removeAttribute("_orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (/^ *\$/.test(txt) || t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.attributes != undefined) {
+        orig_load(e, "x");
+        orig_load(e, "width");
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, ratio) {
+    if (e.attributes != undefined) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = format_percent((parseFloat(e.attributes.x.value) - x) * ratio);
+            if (e.tagName == "text") {
+                e.attributes.x.value = format_percent(parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value) + (100 * 3 / frames.attributes.width.value));
+            }
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = format_percent(parseFloat(e.attributes.width.value) * ratio);
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, ratio);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseFloat(attr.width.value);
+    var xmin = parseFloat(attr.x.value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    var ratio = 100 / width;
+    // XXX: Workaround for JavaScript float issues (fix me)
+    var fudge = 0.001;
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseFloat(a.x.value);
+        var ew = parseFloat(a.width.value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                update_text(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex + fudge >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, ratio);
+                update_text(e);
+            }
+        }
+    }
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+        update_text(el[i]);
+    }
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseFloat(rect.attributes.width.value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseFloat(rect.attributes.x.value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    var fudge = 0.0001;    // JavaScript floating point
+    for (var k in keys) {
+        var x = parseFloat(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw - fudge) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="406" fill="url(#background)"/><text id="title" x="50.0000%" y="24.00">py-spy</text><text id="details" x="10" y="389.00"> </text><text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text><text id="search" x="1090" y="24.00">Search</text><text id="matched" x="1090" y="389.00"> </text><svg id="frames" x="10" width="1180"><g><title>geos::io::WKBWriter::write (libgeos-3.8.0.so) (31 samples, 1.33%)</title><rect x="3.8693%" y="212" width="1.3328%" height="15" fill="rgb(227,0,7)"/><text x="4.1193%" y="222.50"></text></g><g><title>std::ostream::_M_write (ostream:320) (48 samples, 2.06%)</title><rect x="7.1797%" y="276" width="2.0636%" height="15" fill="rgb(217,0,24)"/><text x="7.4297%" y="286.50">s..</text></g><g><title>std::basic_streambuf&lt;char, std::char_traits&lt;char&gt; &gt;::xsputn (streambuf.tcc:99) (33 samples, 1.42%)</title><rect x="7.8246%" y="292" width="1.4187%" height="15" fill="rgb(221,193,54)"/><text x="8.0746%" y="302.50"></text></g><g><title>std::ostream::write (ostream.tcc:196) (58 samples, 2.49%)</title><rect x="6.7928%" y="260" width="2.4936%" height="15" fill="rgb(248,212,6)"/><text x="7.0428%" y="270.50">st..</text></g><g><title>geos::io::WKBWriter::writeCoordinate (libgeos-3.8.0.so) (109 samples, 4.69%)</title><rect x="5.4600%" y="244" width="4.6862%" height="15" fill="rgb(208,68,35)"/><text x="5.7100%" y="254.50">geos:..</text></g><g><title>geos::io::WKBWriter::writeCoordinateSequence (libgeos-3.8.0.so) (113 samples, 4.86%)</title><rect x="5.4600%" y="228" width="4.8581%" height="15" fill="rgb(232,128,0)"/><text x="5.7100%" y="238.50">geos::..</text></g><g><title>geos::io::WKBWriter::writePolygon (libgeos-3.8.0.so) (139 samples, 5.98%)</title><rect x="5.2021%" y="212" width="5.9759%" height="15" fill="rgb(207,160,47)"/><text x="5.4521%" y="222.50">geos::io..</text></g><g><title>std::basic_ios&lt;char, std::char_traits&lt;char&gt; &gt;::init (basic_ios.tcc:152) (38 samples, 1.63%)</title><rect x="11.4789%" y="212" width="1.6337%" height="15" fill="rgb(228,23,34)"/><text x="11.7289%" y="222.50"></text></g><g><title>GEOSWKBWriter_write_r (libgeos_c.so.1.13.1) (249 samples, 10.71%)</title><rect x="2.8805%" y="196" width="10.7051%" height="15" fill="rgb(218,30,26)"/><text x="3.1305%" y="206.50">GEOSWKBWriter_wr..</text></g><g><title>OGRCurveCollection::importPreambleFromWkb (libgdal.so.26.0.4) (28 samples, 1.20%)</title><rect x="14.0585%" y="244" width="1.2038%" height="15" fill="rgb(220,122,19)"/><text x="14.3085%" y="254.50"></text></g><g><title>OGRPolygon::importFromWkb (libgdal.so.26.0.4) (47 samples, 2.02%)</title><rect x="14.0155%" y="228" width="2.0206%" height="15" fill="rgb(250,228,42)"/><text x="14.2655%" y="238.50">O..</text></g><g><title>OGRGeometryFactory::createFromWkb (libgdal.so.26.0.4) (63 samples, 2.71%)</title><rect x="13.5856%" y="196" width="2.7085%" height="15" fill="rgb(240,193,28)"/><text x="13.8356%" y="206.50">OG..</text></g><g><title>OGRGeometryFactory::createFromWkb (libgdal.so.26.0.4) (63 samples, 2.71%)</title><rect x="13.5856%" y="212" width="2.7085%" height="15" fill="rgb(216,20,37)"/><text x="13.8356%" y="222.50">OG..</text></g><g><title>OGRGeometryFactory::createFromGEOS (libgdal.so.26.0.4) (343 samples, 14.75%)</title><rect x="1.6767%" y="180" width="14.7463%" height="15" fill="rgb(206,188,39)"/><text x="1.9267%" y="190.50">OGRGeometryFactory::cr..</text></g><g><title>BuildGeometryFromGEOS (libgdal.so.26.0.4) (350 samples, 15.05%)</title><rect x="1.6767%" y="164" width="15.0473%" height="15" fill="rgb(217,207,13)"/><text x="1.9267%" y="174.50">BuildGeometryFromGEOS (..</text></g><g><title>cfree (libc-2.27.so) (27 samples, 1.16%)</title><rect x="17.1109%" y="196" width="1.1608%" height="15" fill="rgb(231,73,38)"/><text x="17.3609%" y="206.50"></text></g><g><title>geos::index::quadtree::NodeBase::~NodeBase (libgeos-3.8.0.so) (26 samples, 1.12%)</title><rect x="18.2717%" y="196" width="1.1178%" height="15" fill="rgb(225,20,46)"/><text x="18.5217%" y="206.50"></text></g><g><title>geos::simplify::(anonymous namespace)::LineStringMapBuilderFilter::filter_ro (libgeos-3.8.0.so) (28 samples, 1.20%)</title><rect x="20.4643%" y="228" width="1.2038%" height="15" fill="rgb(210,31,41)"/><text x="20.7143%" y="238.50"></text></g><g><title>geos::geom::Polygon::apply_ro (libgeos-3.8.0.so) (51 samples, 2.19%)</title><rect x="20.4643%" y="212" width="2.1926%" height="15" fill="rgb(221,200,47)"/><text x="20.7143%" y="222.50">g..</text></g><g><title>geos::geom::util::GeometryTransformer::transform (libgeos-3.8.0.so) (104 samples, 4.47%)</title><rect x="22.8719%" y="212" width="4.4712%" height="15" fill="rgb(226,26,5)"/><text x="23.1219%" y="222.50">geos:..</text></g><g><title>geos::geom::util::GeometryTransformer::transformPolygon (libgeos-3.8.0.so) (72 samples, 3.10%)</title><rect x="24.2476%" y="228" width="3.0954%" height="15" fill="rgb(249,33,26)"/><text x="24.4976%" y="238.50">geo..</text></g><g><title>geos::geom::util::GeometryTransformer::transformLinearRing (libgeos-3.8.0.so) (56 samples, 2.41%)</title><rect x="24.9355%" y="244" width="2.4076%" height="15" fill="rgb(235,183,28)"/><text x="25.1855%" y="254.50">ge..</text></g><g><title>geos::simplify::(anonymous namespace)::LineStringTransformer::transformCoordinates (libgeos-3.8.0.so) (36 samples, 1.55%)</title><rect x="25.7954%" y="260" width="1.5477%" height="15" fill="rgb(221,5,38)"/><text x="26.0454%" y="270.50"></text></g><g><title>geos::simplify::TaggedLineString::getResultCoordinates (libgeos-3.8.0.so) (32 samples, 1.38%)</title><rect x="25.9673%" y="276" width="1.3758%" height="15" fill="rgb(247,18,42)"/><text x="26.2173%" y="286.50"></text></g><g><title>operator new (new_op.cc:50) (28 samples, 1.20%)</title><rect x="28.2029%" y="276" width="1.2038%" height="15" fill="rgb(241,131,45)"/><text x="28.4529%" y="286.50"></text></g><g><title>__libc_malloc (libc-2.27.so) (28 samples, 1.20%)</title><rect x="28.2029%" y="292" width="1.2038%" height="15" fill="rgb(249,31,29)"/><text x="28.4529%" y="302.50"></text></g><g><title>geos::index::quadtree::Quadtree::ensureExtent (libgeos-3.8.0.so) (37 samples, 1.59%)</title><rect x="27.8590%" y="260" width="1.5907%" height="15" fill="rgb(225,111,53)"/><text x="28.1090%" y="270.50"></text></g><g><title>geos::index::quadtree::Node::createExpanded (libgeos-3.8.0.so) (30 samples, 1.29%)</title><rect x="29.7077%" y="276" width="1.2898%" height="15" fill="rgb(238,160,17)"/><text x="29.9577%" y="286.50"></text></g><g><title>geos::index::quadtree::Node::createNode (libgeos-3.8.0.so) (26 samples, 1.12%)</title><rect x="29.8796%" y="292" width="1.1178%" height="15" fill="rgb(214,148,48)"/><text x="30.1296%" y="302.50"></text></g><g><title>geos::index::quadtree::Node::getSubnode (libgeos-3.8.0.so) (29 samples, 1.25%)</title><rect x="32.4162%" y="308" width="1.2468%" height="15" fill="rgb(232,36,49)"/><text x="32.6662%" y="318.50"></text></g><g><title>geos::index::quadtree::Root::insert (libgeos-3.8.0.so) (101 samples, 4.34%)</title><rect x="29.4497%" y="260" width="4.3422%" height="15" fill="rgb(209,103,24)"/><text x="29.6997%" y="270.50">geos:..</text></g><g><title>geos::index::quadtree::Root::insertContained (libgeos-3.8.0.so) (51 samples, 2.19%)</title><rect x="31.5993%" y="276" width="2.1926%" height="15" fill="rgb(229,88,8)"/><text x="31.8493%" y="286.50">g..</text></g><g><title>geos::index::quadtree::Node::getNode (libgeos-3.8.0.so) (36 samples, 1.55%)</title><rect x="32.2442%" y="292" width="1.5477%" height="15" fill="rgb(213,181,19)"/><text x="32.4942%" y="302.50"></text></g><g><title>geos::index::quadtree::Quadtree::insert (libgeos-3.8.0.so) (158 samples, 6.79%)</title><rect x="27.6440%" y="244" width="6.7928%" height="15" fill="rgb(254,191,54)"/><text x="27.8940%" y="254.50">geos::ind..</text></g><g><title>geos::simplify::LineSegmentIndex::add (libgeos-3.8.0.so) (183 samples, 7.87%)</title><rect x="27.4291%" y="228" width="7.8676%" height="15" fill="rgb(241,83,37)"/><text x="27.6791%" y="238.50">geos::simpl..</text></g><g><title>geos::simplify::LineSegmentIndex::add (libgeos-3.8.0.so) (186 samples, 8.00%)</title><rect x="27.3431%" y="212" width="7.9966%" height="15" fill="rgb(233,36,39)"/><text x="27.5931%" y="222.50">geos::simpl..</text></g><g><title>geos::simplify::LineSegmentIndex::query (libgeos-3.8.0.so) (27 samples, 1.16%)</title><rect x="36.6724%" y="244" width="1.1608%" height="15" fill="rgb(226,3,54)"/><text x="36.9224%" y="254.50"></text></g><g><title>geos::simplify::TaggedLineStringSimplifier::hasBadInputIntersection (libgeos-3.8.0.so) (36 samples, 1.55%)</title><rect x="36.5004%" y="228" width="1.5477%" height="15" fill="rgb(245,192,40)"/><text x="36.7504%" y="238.50"></text></g><g><title>geos::index::quadtree::NodeBase::visit (libgeos-3.8.0.so) (78 samples, 3.35%)</title><rect x="40.5417%" y="292" width="3.3534%" height="15" fill="rgb(238,167,29)"/><text x="40.7917%" y="302.50">geo..</text></g><g><title>geos::index::quadtree::NodeBase::visit (libgeos-3.8.0.so) (75 samples, 3.22%)</title><rect x="40.6707%" y="308" width="3.2244%" height="15" fill="rgb(232,182,51)"/><text x="40.9207%" y="318.50">geo..</text></g><g><title>geos::index::quadtree::NodeBase::visitItems (libgeos-3.8.0.so) (62 samples, 2.67%)</title><rect x="41.2296%" y="324" width="2.6655%" height="15" fill="rgb(231,60,39)"/><text x="41.4796%" y="334.50">ge..</text></g><g><title>geos::simplify::LineSegmentVisitor::visitItem (libgeos-3.8.0.so) (58 samples, 2.49%)</title><rect x="41.4015%" y="340" width="2.4936%" height="15" fill="rgb(208,69,12)"/><text x="41.6515%" y="350.50">ge..</text></g><g><title>std::vector&lt;geos::geom::LineSegment*, std::allocator&lt;geos::geom::LineSegment*&gt; &gt;::_M_realloc_insert&lt;geos::geom::LineSegment* const&amp;&gt; (libgeos-3.8.0.so) (38 samples, 1.63%)</title><rect x="42.2614%" y="356" width="1.6337%" height="15" fill="rgb(235,93,37)"/><text x="42.5114%" y="366.50"></text></g><g><title>geos::simplify::LineSegmentIndex::query (libgeos-3.8.0.so) (82 samples, 3.53%)</title><rect x="40.4127%" y="260" width="3.5254%" height="15" fill="rgb(213,116,39)"/><text x="40.6627%" y="270.50">geo..</text></g><g><title>geos::index::quadtree::NodeBase::visit (libgeos-3.8.0.so) (81 samples, 3.48%)</title><rect x="40.4557%" y="276" width="3.4824%" height="15" fill="rgb(222,207,29)"/><text x="40.7057%" y="286.50">geo..</text></g><g><title>geos::algorithm::CGAlgorithmsDD::orientationIndex (libgeos-3.8.0.so) (46 samples, 1.98%)</title><rect x="44.7979%" y="308" width="1.9776%" height="15" fill="rgb(206,96,30)"/><text x="45.0479%" y="318.50">g..</text></g><g><title>geos::algorithm::CGAlgorithmsDD::orientationIndexFilter (libgeos-3.8.0.so) (28 samples, 1.20%)</title><rect x="45.5718%" y="324" width="1.2038%" height="15" fill="rgb(218,138,4)"/><text x="45.8218%" y="334.50"></text></g><g><title>geos::simplify::TaggedLineStringSimplifier::hasInteriorIntersection (libgeos-3.8.0.so) (82 samples, 3.53%)</title><rect x="43.9381%" y="260" width="3.5254%" height="15" fill="rgb(250,191,14)"/><text x="44.1881%" y="270.50">geo..</text></g><g><title>geos::algorithm::LineIntersector::computeIntersection (libgeos-3.8.0.so) (80 samples, 3.44%)</title><rect x="44.0241%" y="276" width="3.4394%" height="15" fill="rgb(239,60,40)"/><text x="44.2741%" y="286.50">geo..</text></g><g><title>geos::algorithm::LineIntersector::computeIntersect (libgeos-3.8.0.so) (78 samples, 3.35%)</title><rect x="44.1101%" y="292" width="3.3534%" height="15" fill="rgb(206,27,48)"/><text x="44.3601%" y="302.50">geo..</text></g><g><title>geos::simplify::TaggedLineStringSimplifier::hasBadInputIntersection (libgeos-3.8.0.so) (188 samples, 8.08%)</title><rect x="39.6389%" y="244" width="8.0825%" height="15" fill="rgb(225,35,8)"/><text x="39.8889%" y="254.50">geos::simpl..</text></g><g><title>geos::simplify::TaggedLineStringSimplifier::simplifySection (libgeos-3.8.0.so) (332 samples, 14.27%)</title><rect x="36.0275%" y="212" width="14.2734%" height="15" fill="rgb(250,213,24)"/><text x="36.2775%" y="222.50">geos::simplify::Tagged..</text></g><g><title>geos::simplify::TaggedLineStringSimplifier::simplifySection (libgeos-3.8.0.so) (273 samples, 11.74%)</title><rect x="38.5641%" y="228" width="11.7369%" height="15" fill="rgb(247,123,22)"/><text x="38.8141%" y="238.50">geos::simplify::T..</text></g><g><title>geos::simplify::TaggedLineStringSimplifier::simplifySection (libgeos-3.8.0.so) (48 samples, 2.06%)</title><rect x="48.2373%" y="244" width="2.0636%" height="15" fill="rgb(231,138,38)"/><text x="48.4873%" y="254.50">g..</text></g><g><title>operator new (new_op.cc:50) (29 samples, 1.25%)</title><rect x="49.0542%" y="260" width="1.2468%" height="15" fill="rgb(231,145,46)"/><text x="49.3042%" y="270.50"></text></g><g><title>__libc_malloc (libc-2.27.so) (29 samples, 1.25%)</title><rect x="49.0542%" y="276" width="1.2468%" height="15" fill="rgb(251,118,11)"/><text x="49.3042%" y="286.50"></text></g><g><title>geos::simplify::TopologyPreservingSimplifier::getResultGeometry (libgeos-3.8.0.so) (723 samples, 31.08%)</title><rect x="20.0344%" y="196" width="31.0834%" height="15" fill="rgb(217,147,25)"/><text x="20.2844%" y="206.50">geos::simplify::TopologyPreservingSimplifier::getR..</text></g><g><title>GEOSTopologyPreserveSimplify_r (libgeos_c.so.1.13.1) (805 samples, 34.61%)</title><rect x="16.7240%" y="164" width="34.6088%" height="15" fill="rgb(247,81,37)"/><text x="16.9740%" y="174.50">GEOSTopologyPreserveSimplify_r (libgeos_c.so.1.13.1)</text></g><g><title>geos::simplify::TopologyPreservingSimplifier::simplify (libgeos-3.8.0.so) (802 samples, 34.48%)</title><rect x="16.8530%" y="180" width="34.4798%" height="15" fill="rgb(209,12,38)"/><text x="17.1030%" y="190.50">geos::simplify::TopologyPreservingSimplifier::simplify (..</text></g><g><title>geos::io::WKBReader::readCoordinateSequence (libgeos-3.8.0.so) (55 samples, 2.36%)</title><rect x="54.1702%" y="276" width="2.3646%" height="15" fill="rgb(227,1,9)"/><text x="54.4202%" y="286.50">ge..</text></g><g><title>geos::io::WKBReader::readCoordinate (libgeos-3.8.0.so) (39 samples, 1.68%)</title><rect x="54.8581%" y="292" width="1.6767%" height="15" fill="rgb(248,47,43)"/><text x="55.1081%" y="302.50"></text></g><g><title>geos::io::WKBReader::readLinearRing (libgeos-3.8.0.so) (78 samples, 3.35%)</title><rect x="53.2674%" y="260" width="3.3534%" height="15" fill="rgb(221,10,30)"/><text x="53.5174%" y="270.50">geo..</text></g><g><title>geos::io::WKBReader::readPolygon (libgeos-3.8.0.so) (94 samples, 4.04%)</title><rect x="52.7945%" y="244" width="4.0413%" height="15" fill="rgb(210,229,1)"/><text x="53.0445%" y="254.50">geos..</text></g><g><title>geos::io::WKBReader::read (libgeos-3.8.0.so) (131 samples, 5.63%)</title><rect x="52.1926%" y="212" width="5.6320%" height="15" fill="rgb(222,148,37)"/><text x="52.4426%" y="222.50">geos::i..</text></g><g><title>geos::io::WKBReader::readGeometry (libgeos-3.8.0.so) (130 samples, 5.59%)</title><rect x="52.2356%" y="228" width="5.5890%" height="15" fill="rgb(234,67,33)"/><text x="52.4856%" y="238.50">geos::i..</text></g><g><title>std::basic_ios&lt;char, std::char_traits&lt;char&gt; &gt;::init (basic_ios.tcc:152) (43 samples, 1.85%)</title><rect x="58.8134%" y="212" width="1.8487%" height="15" fill="rgb(247,98,35)"/><text x="59.0634%" y="222.50">s..</text></g><g><title>GEOSGeomFromWKB_buf_r (libgeos_c.so.1.13.1) (226 samples, 9.72%)</title><rect x="51.6767%" y="196" width="9.7163%" height="15" fill="rgb(247,138,52)"/><text x="51.9267%" y="206.50">GEOSGeomFromWK..</text></g><g><title>OGRGeometry::exportToGEOS (libgdal.so.26.0.4) (244 samples, 10.49%)</title><rect x="51.3328%" y="164" width="10.4901%" height="15" fill="rgb(213,79,30)"/><text x="51.5828%" y="174.50">OGRGeometry::ex..</text></g><g><title>convertToGEOSGeom (libgdal.so.26.0.4) (240 samples, 10.32%)</title><rect x="51.5047%" y="180" width="10.3181%" height="15" fill="rgb(246,177,23)"/><text x="51.7547%" y="190.50">convertToGEOSGe..</text></g><g><title>0x7f87085c37d8 (libc-2.27.so) (35 samples, 1.50%)</title><rect x="63.1986%" y="228" width="1.5047%" height="15" fill="rgb(230,62,27)"/><text x="63.4486%" y="238.50"></text></g><g><title>OGRGeometry::SimplifyPreserveTopology (libgdal.so.26.0.4) (1,472 samples, 63.28%)</title><rect x="1.5477%" y="148" width="63.2846%" height="15" fill="rgb(216,154,8)"/><text x="1.7977%" y="158.50">OGRGeometry::SimplifyPreserveTopology (libgdal.so.26.0.4)</text></g><g><title>initGEOS_r (libgeos_c.so.1.13.1) (51 samples, 2.19%)</title><rect x="62.6397%" y="164" width="2.1926%" height="15" fill="rgb(244,35,45)"/><text x="62.8897%" y="174.50">i..</text></g><g><title>GEOS_init_r (libgeos_c.so.1.13.1) (50 samples, 2.15%)</title><rect x="62.6827%" y="180" width="2.1496%" height="15" fill="rgb(251,115,12)"/><text x="62.9327%" y="190.50">G..</text></g><g><title>operator new (new_op.cc:50) (47 samples, 2.02%)</title><rect x="62.8117%" y="196" width="2.0206%" height="15" fill="rgb(240,54,50)"/><text x="63.0617%" y="206.50">o..</text></g><g><title>__libc_malloc (libc-2.27.so) (47 samples, 2.02%)</title><rect x="62.8117%" y="212" width="2.0206%" height="15" fill="rgb(233,84,52)"/><text x="63.0617%" y="222.50">_..</text></g><g><title>OGRGeometry::importPreambleFromWkt (libgdal.so.26.0.4) (25 samples, 1.07%)</title><rect x="65.9501%" y="196" width="1.0748%" height="15" fill="rgb(207,117,47)"/><text x="66.2001%" y="206.50"></text></g><g><title>CPLReplacePointByLocalePoint (libgdal.so.26.0.4) (25 samples, 1.07%)</title><rect x="74.0757%" y="244" width="1.0748%" height="15" fill="rgb(249,43,39)"/><text x="74.3257%" y="254.50"></text></g><g><title>CPLStrtodDelim (libgdal.so.26.0.4) (144 samples, 6.19%)</title><rect x="69.0886%" y="228" width="6.1909%" height="15" fill="rgb(209,38,44)"/><text x="69.3386%" y="238.50">CPLStrto..</text></g><g><title>OGRWktReadPointsM (libgdal.so.26.0.4) (185 samples, 7.95%)</title><rect x="67.7128%" y="212" width="7.9536%" height="15" fill="rgb(236,212,23)"/><text x="67.9628%" y="222.50">OGRWktReadP..</text></g><g><title>OGRPolygon::importFromWKTListOnly (libgdal.so.26.0.4) (204 samples, 8.77%)</title><rect x="67.0249%" y="196" width="8.7704%" height="15" fill="rgb(242,79,21)"/><text x="67.2749%" y="206.50">OGRPolygon::..</text></g><g><title>OGRPolygon::importFromWkt (libgdal.so.26.0.4) (233 samples, 10.02%)</title><rect x="65.8641%" y="180" width="10.0172%" height="15" fill="rgb(211,96,35)"/><text x="66.1141%" y="190.50">OGRPolygon::im..</text></g><g><title>OGRGeometryFactory::createFromWkt (libgdal.so.26.0.4) (262 samples, 11.26%)</title><rect x="64.8323%" y="148" width="11.2640%" height="15" fill="rgb(253,215,40)"/><text x="65.0823%" y="158.50">OGRGeometryFactor..</text></g><g><title>OGRGeometryFactory::createFromWkt (libgdal.so.26.0.4) (260 samples, 11.18%)</title><rect x="64.9183%" y="164" width="11.1780%" height="15" fill="rgb(211,81,21)"/><text x="65.1683%" y="174.50">OGRGeometryFacto..</text></g><g><title>0x7f8708587fa9 (libc-2.27.so) (28 samples, 1.20%)</title><rect x="84.0499%" y="244" width="1.2038%" height="15" fill="rgb(208,190,38)"/><text x="84.2999%" y="254.50"></text></g><g><title>OGRMakeWktCoordinateM (libgdal.so.26.0.4) (227 samples, 9.76%)</title><rect x="79.4497%" y="180" width="9.7592%" height="15" fill="rgb(235,213,38)"/><text x="79.6997%" y="190.50">OGRMakeWktCoor..</text></g><g><title>__snprintf_chk (libc-2.27.so) (187 samples, 8.04%)</title><rect x="81.1694%" y="196" width="8.0396%" height="15" fill="rgb(237,122,38)"/><text x="81.4194%" y="206.50">__snprintf_..</text></g><g><title>__vsnprintf_chk (libc-2.27.so) (181 samples, 7.78%)</title><rect x="81.4273%" y="212" width="7.7816%" height="15" fill="rgb(244,218,35)"/><text x="81.6773%" y="222.50">__vsnprintf..</text></g><g><title>_IO_vfprintf (libc-2.27.so) (149 samples, 6.41%)</title><rect x="82.8031%" y="228" width="6.4058%" height="15" fill="rgb(240,68,47)"/><text x="83.0531%" y="238.50">_IO_vfpr..</text></g><g><title>OGRSimpleCurve::exportToWkt (libgdal.so.26.0.4) (301 samples, 12.94%)</title><rect x="78.3319%" y="164" width="12.9407%" height="15" fill="rgb(210,16,53)"/><text x="78.5819%" y="174.50">OGRSimpleCurve::exp..</text></g><g><title>__snprintf_chk (libc-2.27.so) (42 samples, 1.81%)</title><rect x="89.4669%" y="180" width="1.8057%" height="15" fill="rgb(235,124,12)"/><text x="89.7169%" y="190.50">_..</text></g><g><title>__vsnprintf_chk (libc-2.27.so) (41 samples, 1.76%)</title><rect x="89.5099%" y="196" width="1.7627%" height="15" fill="rgb(224,169,11)"/><text x="89.7599%" y="206.50"></text></g><g><title>_IO_vfprintf (libc-2.27.so) (37 samples, 1.59%)</title><rect x="89.6819%" y="212" width="1.5907%" height="15" fill="rgb(250,166,2)"/><text x="89.9319%" y="222.50"></text></g><g><title>OGRPolygon::exportToWkt (libgdal.so.26.0.4) (359 samples, 15.43%)</title><rect x="76.1393%" y="148" width="15.4342%" height="15" fill="rgb(242,216,29)"/><text x="76.3893%" y="158.50">OGRPolygon::exportToWkt ..</text></g><g><title>nonstd::sv_lite::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::operator std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;&lt;std::allocator&lt;char&gt; &gt; (string_view.hpp:905) (30 samples, 1.29%)</title><rect x="92.9923%" y="164" width="1.2898%" height="15" fill="rgb(230,116,27)"/><text x="93.2423%" y="174.50"></text></g><g><title>nonstd::sv_lite::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::to_string&lt;std::allocator&lt;char&gt; &gt; (string_view.hpp:917) (27 samples, 1.16%)</title><rect x="93.1212%" y="180" width="1.1608%" height="15" fill="rgb(228,99,48)"/><text x="93.3712%" y="190.50"></text></g><g><title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::basic_string&lt;char const*, void&gt; (basic_string.h:607) (27 samples, 1.16%)</title><rect x="93.1212%" y="196" width="1.1608%" height="15" fill="rgb(253,11,6)"/><text x="93.3712%" y="206.50"></text></g><g><title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_construct&lt;char const*&gt; (basic_string.h:255) (26 samples, 1.12%)</title><rect x="93.1642%" y="212" width="1.1178%" height="15" fill="rgb(247,143,39)"/><text x="93.4142%" y="222.50"></text></g><g><title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_construct_aux&lt;char const*&gt; (basic_string.h:236) (26 samples, 1.12%)</title><rect x="93.1642%" y="228" width="1.1178%" height="15" fill="rgb(236,97,10)"/><text x="93.4142%" y="238.50"></text></g><g><title>arrow::BaseBinaryArray&lt;arrow::BinaryType&gt;::GetString[abi:cxx11] (array.h:831) (41 samples, 1.76%)</title><rect x="92.6483%" y="148" width="1.7627%" height="15" fill="rgb(233,208,19)"/><text x="92.8983%" y="158.50"></text></g><g><title>arrow::BaseBinaryBuilder&lt;arrow::BinaryType&gt;::Append (builder_binary.h:73) (58 samples, 2.49%)</title><rect x="94.7549%" y="148" width="2.4936%" height="15" fill="rgb(216,164,2)"/><text x="95.0049%" y="158.50">ar..</text></g><g><title>arrow::BaseBinaryBuilder&lt;arrow::BinaryType&gt;::Append (builder_binary.h:69) (58 samples, 2.49%)</title><rect x="94.7549%" y="164" width="2.4936%" height="15" fill="rgb(220,129,5)"/><text x="95.0049%" y="174.50">ar..</text></g><g><title>nonstd::sv_lite::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::basic_string_view (string_view.hpp:488) (25 samples, 1.07%)</title><rect x="97.8074%" y="148" width="1.0748%" height="15" fill="rgb(242,17,10)"/><text x="98.0574%" y="158.50"></text></g><g><title>nonstd::sv_lite::detail::length&lt;char const&gt; (string_view.hpp:418) (24 samples, 1.03%)</title><rect x="97.8504%" y="164" width="1.0318%" height="15" fill="rgb(242,107,0)"/><text x="98.1004%" y="174.50"></text></g><g><title>ST_SimplifyPreserveTopology (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:5324) (2,282 samples, 98.11%)</title><rect x="1.3758%" y="84" width="98.1083%" height="15" fill="rgb(251,28,31)"/><text x="1.6258%" y="94.50">ST_SimplifyPreserveTopology (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:5324)</text></g><g><title>ST_SimplifyPreserveTopology (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:5345) (2,282 samples, 98.11%)</title><rect x="1.3758%" y="100" width="98.1083%" height="15" fill="rgb(233,223,10)"/><text x="1.6258%" y="110.50">ST_SimplifyPreserveTopology (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:5345)</text></g><g><title>arctern::gis::ST_SimplifyPreserveTopology (gis_functions.cpp:127) (2,282 samples, 98.11%)</title><rect x="1.3758%" y="116" width="98.1083%" height="15" fill="rgb(215,21,27)"/><text x="1.6258%" y="126.50">arctern::gis::ST_SimplifyPreserveTopology (gis_functions.cpp:127)</text></g><g><title>arctern::gis::gdal::ST_SimplifyPreserveTopology (gis_functions.cpp:527) (2,282 samples, 98.11%)</title><rect x="1.3758%" y="132" width="98.1083%" height="15" fill="rgb(232,23,21)"/><text x="1.6258%" y="142.50">arctern::gis::gdal::ST_SimplifyPreserveTopology (gis_functions.cpp:527)</text></g><g><title>all (2,326 samples, 100%)</title><rect x="0.0000%" y="36" width="100.0000%" height="15" fill="rgb(244,5,23)"/><text x="0.2500%" y="46.50"></text></g><g><title>&lt;module&gt; (profile_geo.py:324) (2,300 samples, 98.88%)</title><rect x="1.1178%" y="52" width="98.8822%" height="15" fill="rgb(226,81,46)"/><text x="1.3678%" y="62.50">&lt;module&gt; (profile_geo.py:324)</text></g><g><title>test_ST_SimplifyPreserveTopology (profile_geo.py:77) (2,295 samples, 98.67%)</title><rect x="1.3328%" y="68" width="98.6672%" height="15" fill="rgb(247,70,30)"/><text x="1.5828%" y="78.50">test_ST_SimplifyPreserveTopology (profile_geo.py:77)</text></g></svg></svg>
