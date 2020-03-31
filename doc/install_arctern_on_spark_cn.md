@@ -106,24 +106,29 @@
 
 ## <span id = "verification">安装验证</span>
 
-进入 Python 环境，尝试导入 `arctern_gis` 和 `arctern_pyspark` 验证安装是否成功。
+进入 Python 环境，尝试导入 `arctern` 和 `arctern_pyspark` 验证安装是否成功。
 
 ```python
 Python 3.7.6 | packaged by conda-forge | (default, Jan 29 2020, 14:55:04)
 [GCC 7.3.0] on linux
 Type "help", "copyright", "credits" or "license" for more information.
->>> import arctern_gis
+>>> import arctern
 >>> import arctern_pyspark
 ```
 
 ## <span id = "pathconfiguration">配置 Spark 的 Python 路径</span>
 
+在文件 `conf/spark-default.conf` 的最后添加以下内容。其中 `[path/to/your/conda]` 为Conda的安装路径。
+
+```bash
+spark.executorEnv.PROJ_LIB [path/to/your/conda]/envs/arctern/share/proj
+spark.executorEnv.GDAL_DATA [path/to/your/conda]/envs/arctern/share/gdal
+```
+
 在文件 `conf/spark-env.sh` 的最后添加以下内容。其中 `[path/to/your/conda]` 为Conda的安装路径。
 
 ```bash
 export PYSPARK_PYTHON=[path/to/your/conda]/envs/arctern/bin/python
-export GDAL_DATA=[path/to/your/conda]/envs/arctern/share/gdal
-export PROJ_LIB=[path/to/your/conda]/envs/arctern/share/proj
 ```
 
 通过如下方式，检查 PySpark 是否使用 $PYSPARK_PYTHON 指定的 Python 路径。其中 `[path/to/your/spark]` 为 Spark 的安装路径。
@@ -181,4 +186,5 @@ Arctern 可以运行在 Spark 的各种模式下，需要在每台运行 Spark �
 * `spark` 安装的绝对路径与集群中每台机器完全一致
 * `conda` 安装的绝对路径与集群中每个机器完全一致
 * `conda` 虚拟环境名与集群中每个机器完全一致
+
 
