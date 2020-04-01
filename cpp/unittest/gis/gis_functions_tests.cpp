@@ -23,6 +23,7 @@
 
 #include "arrow/gis_api.h"
 #include "utils/check_status.h"
+#include "gis/gdal/format_conversion.h"
 
 #define COMMON_TEST_CASES                                                              \
   auto p1 = "POINT (0 1)";                                                             \
@@ -141,14 +142,48 @@ TEST(geometry_test, make_point_from_double) {
   ASSERT_EQ(point_arr_str->GetString(1), "POINT (1 1)");
 }
 
-char* build_point(double x, double y) {
+void GeometryFromWKB(OGRGeometry **geo,const uint8_t *wkb) {
+  CHECK_GDAL(OGRGeometryFactory::createFromWkb(wkb, nullptr, geo));
+}
+
+TEST(geometry_test, st_point_to_wkb) {
+  arrow::DoubleBuilder builder_x;
+  arrow::DoubleBuilder builder_y;
+  std::shared_ptr<arrow::Array> ptr_x;
+  std::shared_ptr<arrow::Array> ptr_y;
+  int points_num = 10;
+
+  for (int i = 0; i < points_num; i++) {
+    builder_x.Append(i);
+    builder_y.Append(i);
+  }
+
+  builder_x.Finish(&ptr_x);
+  builder_y.Finish(&ptr_y);
+
+  auto point_arr = arctern::gis::ST_Point_WKB(ptr_x, ptr_y);
+  auto point_arr_binary = std::static_pointer_cast<arrow::BinaryArray>(point_arr);
+
+  ASSERT_EQ(point_arr_binary->length(), points_num);
+
+  for (int i = 0; i < points_num; ++i) {
+    OGRPoint* point = nullptr;
+    auto length = point_arr_binary->value_length(i);
+    GeometryFromWKB(reinterpret_cast<OGRGeometry **>(&point),point_arr_binary->GetValue(i, &length));
+    ASSERT_EQ(point->getX(),i);
+    ASSERT_EQ(point->getY(),i);
+    CPLFree(point);
+  }
+}
+
+char *build_point(double x, double y) {
   OGRPoint point(x, y);
-  char* point_str = nullptr;
+  char *point_str = nullptr;
   CHECK_GDAL(point.exportToWkt(&point_str));
   return point_str;
 }
 
-char* build_polygon(double x, double y) {
+char *build_polygon(double x, double y) {
   OGRLinearRing ring;
   ring.addPoint(x, y);
   ring.addPoint(x, y + 10);
@@ -159,17 +194,17 @@ char* build_polygon(double x, double y) {
   OGRPolygon polygon;
   polygon.addRing(&ring);
 
-  char* polygon_str = nullptr;
+  char *polygon_str = nullptr;
   CHECK_GDAL(polygon.exportToWkt(&polygon_str));
   return polygon_str;
 }
 
-char* build_linestring(double x, double y) {
+char *build_linestring(double x, double y) {
   OGRLineString line;
   line.addPoint(x, y);
   line.addPoint(x, y + 20);
 
-  char* line_str = nullptr;
+  char *line_str = nullptr;
   CHECK_GDAL(line.exportToWkt(&line_str));
   return line_str;
 }
@@ -178,9 +213,9 @@ std::shared_ptr<arrow::Array> build_points() {
   arrow::StringBuilder string_builder;
   std::shared_ptr<arrow::Array> points;
 
-  char* point_str1 = build_point(10, 20);
-  char* point_str2 = build_point(20, 30);
-  char* point_str3 = build_point(30, 40);
+  char *point_str1 = build_point(10, 20);
+  char *point_str2 = build_point(20, 30);
+  char *point_str3 = build_point(30, 40);
 
   string_builder.Append(std::string(point_str1));
   string_builder.Append(std::string(point_str2));
@@ -198,9 +233,9 @@ std::shared_ptr<arrow::Array> build_polygons() {
   arrow::StringBuilder string_builder;
   std::shared_ptr<arrow::Array> polygons;
 
-  char* str1 = build_polygon(10, 20);
-  char* str2 = build_polygon(30, 40);
-  char* str3 = build_polygon(50, 60);
+  char *str1 = build_polygon(10, 20);
+  char *str2 = build_polygon(30, 40);
+  char *str3 = build_polygon(50, 60);
   string_builder.Append(std::string(str1));
   string_builder.Append(std::string(str2));
   string_builder.Append(std::string(str3));
@@ -216,9 +251,9 @@ std::shared_ptr<arrow::Array> build_linestrings() {
   arrow::StringBuilder string_builder;
   std::shared_ptr<arrow::Array> line_strings;
 
-  char* str1 = build_linestring(10, 20);
-  char* str2 = build_linestring(30, 40);
-  char* str3 = build_linestring(50, 60);
+  char *str1 = build_linestring(10, 20);
+  char *str2 = build_linestring(30, 40);
+  char *str3 = build_linestring(50, 60);
   string_builder.Append(std::string(str1));
   string_builder.Append(std::string(str2));
   string_builder.Append(std::string(str3));
@@ -3340,12 +3375,36 @@ TEST(geometry_test, test_ST_Transform) {
 
   auto res = arctern::gis::ST_Transform(input_data, src_rs, dst_rs);
   auto res_str = std::static_pointer_cast<arrow::StringArray>(res)->GetString(0);
-  OGRGeometry* res_geo = nullptr;
+  OGRGeometry *res_geo = nullptr;
   CHECK_GDAL(OGRGeometryFactory::createFromWkt(res_str.c_str(), nullptr, &res_geo));
 
-  auto rst_pointer = reinterpret_cast<OGRPoint*>(res_geo);
+  auto rst_pointer = reinterpret_cast<OGRPoint *>(res_geo);
 
   ASSERT_DOUBLE_EQ(rst_pointer->getX(), 1113194.90793274);
+  ASSERT_DOUBLE_EQ(rst_pointer->getY(), 1118889.97485796);
+
+  OGRGeometryFactory::destroyGeometry(res_geo);
+}
+
+TEST(geometry_test, test_ST_Transform_WKB) {
+  arrow::StringBuilder builder;
+  std::shared_ptr<arrow::Array> input_data;
+
+  builder.Append(std::string("POINT (10 10)"));
+  builder.Finish(&input_data);
+
+  auto input_data_wkb = arctern::gis::gdal::WktToWkb(input_data);
+  std::string src_rs("EPSG:4326");
+  std::string dst_rs("EPSG:3857");
+
+  auto res = arctern::gis::ST_Transform_WKB(input_data_wkb, src_rs, dst_rs);
+  auto res_str = std::static_pointer_cast<arrow::StringArray>(res)->GetString(0);
+  OGRGeometry *res_geo = nullptr;
+  CHECK_GDAL(OGRGeometryFactory::createFromWkb(res_str.c_str(), nullptr, &res_geo));
+
+  auto rst_pointer = reinterpret_cast<OGRPoint *>(res_geo);
+
+  ASSERT_DOUBLE_EQ(rst_pointer->getX(), 1113194.9079327357);
   ASSERT_DOUBLE_EQ(rst_pointer->getY(), 1118889.97485796);
 
   OGRGeometryFactory::destroyGeometry(res_geo);

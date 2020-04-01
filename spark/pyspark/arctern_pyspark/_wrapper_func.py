@@ -16,6 +16,7 @@ from venv import logger
 
 __all__ = [
     "ST_Point",
+    "ST_Point_WKB",
     "ST_Intersection",
     "ST_IsValid",
     "ST_PrecisionReduce",
@@ -43,6 +44,7 @@ __all__ = [
     "ST_Union_Aggr",
     "ST_Envelope_Aggr",
     "ST_Transform",
+    "ST_Transform_WKB",
     "ST_CurveToLine",
     "ST_GeomFromGeoJSON",
     "ST_PointFromText",
@@ -109,6 +111,10 @@ def ST_AsText(geo):
 @pandas_udf("string", PandasUDFType.SCALAR)
 def ST_Point(x, y):
     return arctern.ST_Point(x, y)
+
+@pandas_udf("binary", PandasUDFType.SCALAR)
+def ST_Point_WKB(x, y):
+    return arctern.ST_Point_WKB(x, y)
 
 @pandas_udf("string", PandasUDFType.SCALAR)
 def ST_GeomFromGeoJSON(json):
@@ -251,6 +257,9 @@ def ST_Envelope_Aggr(geos):
 def ST_Transform(geos, src_rs, dst_rs):
     return arctern.ST_Transform(geos, src_rs[0], dst_rs[0])
 
+@pandas_udf("binary", PandasUDFType.SCALAR)
+def ST_Transform_WKB(geos, src_rs, dst_rs):
+    return arctern.ST_Transform_WKB(geos, src_rs[0], dst_rs[0])
 
 @pandas_udf("string", PandasUDFType.SCALAR)
 def ST_CurveToLine(geos):

@@ -72,6 +72,9 @@ def wkb2wkt(arr_wkb):
 def ST_Point(object arr_x,object arr_y):
     return pyarrow_wrap_array(arctern_core_pxd.ST_Point(pyarrow_unwrap_array(arr_x),pyarrow_unwrap_array(arr_y)))
 
+def ST_Point_WKB(object arr_x,object arr_y):
+    return pyarrow_wrap_array(arctern_core_pxd.ST_Point_WKB(pyarrow_unwrap_array(arr_x),pyarrow_unwrap_array(arr_y)))
+
 def ST_GeomFromGeoJSON(object json):
     return pyarrow_wrap_array(arctern_core_pxd.ST_GeomFromGeoJSON(pyarrow_unwrap_array(json)))
 
@@ -143,6 +146,9 @@ def ST_ConvexHull(object geo_arr):
 
 def ST_Transform(object geo_arr, bytes src_rs, bytes dst_rs):
     return pyarrow_wrap_array(arctern_core_pxd.ST_Transform(pyarrow_unwrap_array(geo_arr),src_rs,dst_rs))
+
+def ST_Transform_WKB(object geo_arr, bytes src_rs, bytes dst_rs):
+    return pyarrow_wrap_array(arctern_core_pxd.ST_Transform_WKB(pyarrow_unwrap_array(geo_arr),src_rs,dst_rs))
 
 def ST_CurveToLine(object geo_arr):
     return pyarrow_wrap_array(arctern_core_pxd.ST_CurveToLine(pyarrow_unwrap_array(geo_arr)))

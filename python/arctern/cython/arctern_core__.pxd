@@ -33,6 +33,7 @@ cdef extern from "render.h" namespace "arctern::render":
 
 cdef extern from "gis.h" namespace "arctern::gis":
     shared_ptr[CArray] ST_Point(const shared_ptr[CArray] &ptr_x,const shared_ptr[CArray] &ptr_y) except +
+    shared_ptr[CArray] ST_Point_WKB(const shared_ptr[CArray] &ptr_x,const shared_ptr[CArray] &ptr_y) except +
     shared_ptr[CArray] ST_GeomFromGeoJSON(const shared_ptr[CArray] &json) except +
     shared_ptr[CArray] ST_GeomFromText(const shared_ptr[CArray] &text) except +
     shared_ptr[CArray] ST_Intersection(shared_ptr[CArray] &left_geometries,shared_ptr[CArray] &right_geometries) except +
@@ -57,6 +58,7 @@ cdef extern from "gis.h" namespace "arctern::gis":
     shared_ptr[CArray] ST_HausdorffDistance(const shared_ptr[CArray] &geo1,const shared_ptr[CArray] &geo2) except +
     shared_ptr[CArray] ST_ConvexHull(const shared_ptr[CArray] &geo_arr) except +
     shared_ptr[CArray] ST_Transform(const shared_ptr[CArray] &geo_arr, const string& src_rs, const string& dst_rs) except +
+    shared_ptr[CArray] ST_Transform_WKB(const shared_ptr[CArray] &geo_arr, const string& src_rs, const string& dst_rs) except +
     shared_ptr[CArray] ST_CurveToLine(const shared_ptr[CArray] &geo_arr) except +
     shared_ptr[CArray] ST_NPoints(const shared_ptr[CArray] &geo_arr) except +
     shared_ptr[CArray] ST_Envelope(const shared_ptr[CArray] &geo_arr) except +

@@ -14,6 +14,7 @@
 
 __all__ = [
     "ST_Point",
+    "ST_Point_WKB",
     "ST_Intersection",
     "ST_IsValid",
     "ST_PrecisionReduce",
@@ -41,6 +42,7 @@ __all__ = [
     "ST_Union_Aggr",
     "ST_Envelope_Aggr",
     "ST_Transform",
+    "ST_Transform_WKB",
     "ST_CurveToLine",
     "ST_GeomFromGeoJSON",
     "ST_GeomFromText",
@@ -65,6 +67,12 @@ def ST_Point(x, y):
     arr_x = pa.array(x, type='double')
     arr_y = pa.array(y, type='double')
     rs = arctern_core_.ST_Point(arr_x, arr_y)
+    return rs.to_pandas()
+
+def ST_Point_WKB(x, y):
+    arr_x = pa.array(x, type='double')
+    arr_y = pa.array(y, type='double')
+    rs = arctern_core_.ST_Point_WKB(arr_x, arr_y)
     return rs.to_pandas()
 
 def ST_GeomFromGeoJSON(json):
@@ -226,6 +234,14 @@ def ST_Transform(geos, src, dst):
     dst = bytes(dst, encoding="utf8")
 
     rs = arctern_core_.ST_Transform(arr_geos, src, dst)
+    return rs.to_pandas()
+
+def ST_Transform_WKB(geos, src, dst):
+    arr_geos = pa.array(geos, type='binary')
+    src = bytes(src, encoding="utf8")
+    dst = bytes(dst, encoding="utf8")
+
+    rs = arctern_core_.ST_Transform_WKB(arr_geos, src, dst)
     return rs.to_pandas()
 
 def ST_CurveToLine(geos):

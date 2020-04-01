@@ -44,6 +44,11 @@ std::shared_ptr<arrow::Array> ST_Point(const std::shared_ptr<arrow::Array>& x_va
 #endif
 }
 
+std::shared_ptr<arrow::Array> ST_Point_WKB(const std::shared_ptr<arrow::Array>& x_values,
+                                           const std::shared_ptr<arrow::Array>& y_values){
+  return gdal::ST_Point_WKB(x_values, y_values);
+}
+
 std::shared_ptr<arrow::Array> ST_PolygonFromEnvelope(
     const std::shared_ptr<arrow::Array>& min_x_values,
     const std::shared_ptr<arrow::Array>& min_y_values,
@@ -142,6 +147,12 @@ std::shared_ptr<arrow::Array> ST_Transform(
     const std::shared_ptr<arrow::Array>& geometries, const std::string& src_rs,
     const std::string& dst_rs) {
   return gdal::ST_Transform(geometries, src_rs, dst_rs);
+}
+
+std::shared_ptr<arrow::Array> ST_Transform_WKB(
+    const std::shared_ptr<arrow::Array>& geometries, const std::string& src_rs,
+    const std::string& dst_rs) {
+  return gdal::ST_Transform_WKB(geometries, src_rs, dst_rs);
 }
 
 std::shared_ptr<arrow::Array> ST_CurveToLine(

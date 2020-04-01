@@ -27,6 +27,9 @@ namespace gis {
 std::shared_ptr<arrow::Array> ST_Point(const std::shared_ptr<arrow::Array>& point_x,
                                        const std::shared_ptr<arrow::Array>& point_y);
 
+std::shared_ptr<arrow::Array> ST_Point_WKB(const std::shared_ptr<arrow::Array>& x_values,
+                                           const std::shared_ptr<arrow::Array>& y_values);
+
 std::shared_ptr<arrow::Array> ST_GeomFromGeoJSON(
     const std::shared_ptr<arrow::Array>& json);
 
@@ -102,6 +105,10 @@ std::shared_ptr<arrow::Array> ST_ConvexHull(const std::shared_ptr<arrow::Array>&
 std::shared_ptr<arrow::Array> ST_Transform(const std::shared_ptr<arrow::Array>& geos,
                                            const std::string& src_rs,
                                            const std::string& dst_rs);
+
+std::shared_ptr<arrow::Array> ST_Transform_WKB(
+    const std::shared_ptr<arrow::Array>& geometries, const std::string& src_rs,
+    const std::string& dst_rs);
 
 std::shared_ptr<arrow::Array> ST_CurveToLine(const std::shared_ptr<arrow::Array>& geos);
 

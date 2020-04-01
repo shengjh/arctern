@@ -16,6 +16,7 @@ import os
 import sys
 import time
 
+import arctern
 from arctern_pyspark import register_funcs
 from pyspark.sql import SparkSession
 
@@ -23,7 +24,7 @@ from pyspark.sql import SparkSession
 # os.environ["SPARK_HOME"] = "/home/shengjh/Apps/spark-3.0.0-preview2"
 
 profile_dump_path = "/tmp/pyspark-profile"
-rows = 10000
+rows = 1000000
 test_name = []
 
 
@@ -55,6 +56,12 @@ def count_and_uncache(spark, sql):
 
 def calculate(spark, sql):
     df = spark.sql(sql)
+    # data = df.collect()
+    # import pandas
+    # _data = [x[0] for x in data]
+    # data_serise = pandas.Series(_data)
+    # data_serise = arctern.wkb2wkt(data_serise)
+    # print(data_serise)
     df.createOrReplaceTempView("df")
     spark.sql("CACHE TABLE df")
     start_time = time.time()
@@ -62,11 +69,22 @@ def calculate(spark, sql):
 
 
 def run_st_point(spark):
+    print("rows=", rows)
     points_data = []
     points_data.extend([(0.1, 0.1)] * rows)
     points_df = spark.createDataFrame(data=points_data, schema=["x", "y"]).cache()
     points_df.createOrReplaceTempView("points")
     sql = "select ST_Point(x, y) from points"
+    calculate(spark, sql)
+    count_and_uncache(spark, sql)
+
+def run_st_point_wkb(spark):
+    print("rows=", rows)
+    points_data = []
+    points_data.extend([(0.1, 0.1)] * rows)
+    points_df = spark.createDataFrame(data=points_data, schema=["x", "y"]).cache()
+    points_df.createOrReplaceTempView("points")
+    sql = "select ST_Point_WKB(x, y) from points"
     calculate(spark, sql)
     count_and_uncache(spark, sql)
 
@@ -527,11 +545,27 @@ def run_st_envelope_aggr(spark):
 
 
 def run_st_transform(spark):
+    print("rows=", rows)
     test_data = []
     test_data.extend([('POINT (10 10)',)] * rows)
     buffer_df = spark.createDataFrame(data=test_data, schema=['geos']).cache()
     buffer_df.createOrReplaceTempView("buffer")
     sql = "select ST_Transform(geos, 'epsg:4326', 'epsg:3857') from buffer"
+    calculate(spark, sql)
+    count_and_uncache(spark, sql)
+
+def run_st_transform_wkb(spark):
+    print("rows=", rows)
+    test_data = []
+    test_data.extend(['POINT (10 10)'] * rows)
+    import pandas
+    test_serise = pandas.Series(test_data)
+    wkb_arry = arctern.wkt2wkb(test_serise)
+    test_data = [(x,) for x in wkb_arry]
+    wkb_arry = test_data
+    buffer_df = spark.createDataFrame(data=wkb_arry, schema=['geos']).cache()
+    buffer_df.createOrReplaceTempView("buffer")
+    sql = "select ST_Transform_WKB(geos, 'epsg:4326', 'epsg:3857') from buffer"
     calculate(spark, sql)
     count_and_uncache(spark, sql)
 
@@ -620,6 +654,8 @@ if __name__ == "__main__":
         'st_geomfromwkt': run_st_geomfromwkt,
         'st_geomfromtext': run_st_geomfromtext,
         'st_astext': run_st_astext,
+        'st_point_wkb': run_st_point_wkb,
+        'st_transform_wkb': run_st_transform_wkb,
     }
 
     test_name = test_name or funcs.keys()

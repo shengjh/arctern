@@ -33,6 +33,9 @@ namespace gis {
 std::shared_ptr<arrow::Array> ST_Point(const std::shared_ptr<arrow::Array>& x_values,
                                        const std::shared_ptr<arrow::Array>& y_values);
 
+std::shared_ptr<arrow::Array> ST_Point_WKB(const std::shared_ptr<arrow::Array>& x_values,
+                                           const std::shared_ptr<arrow::Array>& y_values);
+
 std::shared_ptr<arrow::Array> ST_PolygonFromEnvelope(
     const std::shared_ptr<arrow::Array>& min_x_values,
     const std::shared_ptr<arrow::Array>& min_y_values,
@@ -85,6 +88,10 @@ std::shared_ptr<arrow::Array> ST_ConvexHull(
     const std::shared_ptr<arrow::Array>& geometries);
 
 std::shared_ptr<arrow::Array> ST_Transform(const std::shared_ptr<arrow::Array>& geos,
+                                           const std::string& src_rs,
+                                           const std::string& dst_rs);
+
+std::shared_ptr<arrow::Array> ST_Transform_WKB(const std::shared_ptr<arrow::Array>& geos,
                                            const std::string& src_rs,
                                            const std::string& dst_rs);
 

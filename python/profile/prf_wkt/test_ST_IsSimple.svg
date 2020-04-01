@@ -1,0 +1,419 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="438" onload="init(evt)" viewBox="0 0 1200 438" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
+#title { text-anchor:middle; font-size:17px; }
+#search { opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[var nametype = 'Function:';
+var fontsize = 12;
+var fontwidth = 0.59;
+var xpad = 10;
+var inverted = true;
+var searchcolor = 'rgb(230,0,230)';
+var fluiddrawing = true;
+var truncate_text_right = false;]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+          svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            var el = frames.children;
+            for(var i = 0; i < el.length; i++) {
+                update_text(el[i]);
+            }
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad - 100;
+            matchedtxt.attributes.x.value = svgWidth - xpad - 100;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+            var params = get_params()
+            params.x = el.attributes._orig_x.value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["_orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("_orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["_orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+    e.removeAttribute("_orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (/^ *\$/.test(txt) || t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.attributes != undefined) {
+        orig_load(e, "x");
+        orig_load(e, "width");
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, ratio) {
+    if (e.attributes != undefined) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = format_percent((parseFloat(e.attributes.x.value) - x) * ratio);
+            if (e.tagName == "text") {
+                e.attributes.x.value = format_percent(parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value) + (100 * 3 / frames.attributes.width.value));
+            }
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = format_percent(parseFloat(e.attributes.width.value) * ratio);
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, ratio);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseFloat(attr.width.value);
+    var xmin = parseFloat(attr.x.value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    var ratio = 100 / width;
+    // XXX: Workaround for JavaScript float issues (fix me)
+    var fudge = 0.001;
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseFloat(a.x.value);
+        var ew = parseFloat(a.width.value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                update_text(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex + fudge >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, ratio);
+                update_text(e);
+            }
+        }
+    }
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+        update_text(el[i]);
+    }
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseFloat(rect.attributes.width.value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseFloat(rect.attributes.x.value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    var fudge = 0.0001;    // JavaScript floating point
+    for (var k in keys) {
+        var x = parseFloat(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw - fudge) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="438" fill="url(#background)"/><text id="title" x="50.0000%" y="24.00">py-spy</text><text id="details" x="10" y="421.00"> </text><text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text><text id="search" x="1090" y="24.00">Search</text><text id="matched" x="1090" y="421.00"> </text><svg id="frames" x="10" width="1180"><g><title>&lt;module&gt; (profile_geo.py:15) (20 samples, 1.89%)</title><rect x="0.0000%" y="52" width="1.8921%" height="15" fill="rgb(227,0,7)"/><text x="0.2500%" y="62.50">&lt;..</text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:983) (20 samples, 1.89%)</title><rect x="0.0000%" y="68" width="1.8921%" height="15" fill="rgb(217,0,24)"/><text x="0.2500%" y="78.50">_..</text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:967) (20 samples, 1.89%)</title><rect x="0.0000%" y="84" width="1.8921%" height="15" fill="rgb(221,193,54)"/><text x="0.2500%" y="94.50">_..</text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:677) (20 samples, 1.89%)</title><rect x="0.0000%" y="100" width="1.8921%" height="15" fill="rgb(248,212,6)"/><text x="0.2500%" y="110.50">_..</text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:728) (20 samples, 1.89%)</title><rect x="0.0000%" y="116" width="1.8921%" height="15" fill="rgb(208,68,35)"/><text x="0.2500%" y="126.50">e..</text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:219) (20 samples, 1.89%)</title><rect x="0.0000%" y="132" width="1.8921%" height="15" fill="rgb(232,128,0)"/><text x="0.2500%" y="142.50">_..</text></g><g><title>&lt;module&gt; (profile_geo.py:16) (17 samples, 1.61%)</title><rect x="1.8921%" y="52" width="1.6083%" height="15" fill="rgb(207,160,47)"/><text x="2.1421%" y="62.50"></text></g><g><title>_find_and_load (&lt;frozen importlib._bootstrap&gt;:983) (17 samples, 1.61%)</title><rect x="1.8921%" y="68" width="1.6083%" height="15" fill="rgb(228,23,34)"/><text x="2.1421%" y="78.50"></text></g><g><title>_find_and_load_unlocked (&lt;frozen importlib._bootstrap&gt;:967) (17 samples, 1.61%)</title><rect x="1.8921%" y="84" width="1.6083%" height="15" fill="rgb(218,30,26)"/><text x="2.1421%" y="94.50"></text></g><g><title>_load_unlocked (&lt;frozen importlib._bootstrap&gt;:677) (17 samples, 1.61%)</title><rect x="1.8921%" y="100" width="1.6083%" height="15" fill="rgb(220,122,19)"/><text x="2.1421%" y="110.50"></text></g><g><title>exec_module (&lt;frozen importlib._bootstrap_external&gt;:728) (17 samples, 1.61%)</title><rect x="1.8921%" y="116" width="1.6083%" height="15" fill="rgb(250,228,42)"/><text x="2.1421%" y="126.50"></text></g><g><title>_call_with_frames_removed (&lt;frozen importlib._bootstrap&gt;:219) (17 samples, 1.61%)</title><rect x="1.8921%" y="132" width="1.6083%" height="15" fill="rgb(240,193,28)"/><text x="2.1421%" y="142.50"></text></g><g><title>OGRGeometry::importPreambleFromWkt (libgdal.so.26.0.4) (18 samples, 1.70%)</title><rect x="7.3794%" y="212" width="1.7029%" height="15" fill="rgb(216,20,37)"/><text x="7.6294%" y="222.50"></text></g><g><title>OGRSimpleCurve::setPoints (libgdal.so.26.0.4) (11 samples, 1.04%)</title><rect x="10.3122%" y="228" width="1.0407%" height="15" fill="rgb(206,188,39)"/><text x="10.5622%" y="238.50"></text></g><g><title>0x7ffa28e3aa8a (libc-2.27.so) (12 samples, 1.14%)</title><rect x="16.3671%" y="260" width="1.1353%" height="15" fill="rgb(217,207,13)"/><text x="16.6171%" y="270.50"></text></g><g><title>0x7ffa28e3a6f6 (libc-2.27.so) (11 samples, 1.04%)</title><rect x="22.1381%" y="276" width="1.0407%" height="15" fill="rgb(231,73,38)"/><text x="22.3881%" y="286.50"></text></g><g><title>0x7ffa28e3c80a (libc-2.27.so) (24 samples, 2.27%)</title><rect x="21.0974%" y="260" width="2.2706%" height="15" fill="rgb(225,20,46)"/><text x="21.3474%" y="270.50">0..</text></g><g><title>CPLReplacePointByLocalePoint (libgdal.so.26.0.4) (28 samples, 2.65%)</title><rect x="24.5979%" y="260" width="2.6490%" height="15" fill="rgb(210,31,41)"/><text x="24.8479%" y="270.50">CP..</text></g><g><title>localeconv (libc-2.27.so) (25 samples, 2.37%)</title><rect x="24.8817%" y="276" width="2.3652%" height="15" fill="rgb(221,200,47)"/><text x="25.1317%" y="286.50">lo..</text></g><g><title>CPLStrtodDelim (libgdal.so.26.0.4) (155 samples, 14.66%)</title><rect x="12.7720%" y="244" width="14.6641%" height="15" fill="rgb(226,26,5)"/><text x="13.0220%" y="254.50">CPLStrtodDelim (libgda..</text></g><g><title>OGRWktReadPointsM (libgdal.so.26.0.4) (181 samples, 17.12%)</title><rect x="11.3529%" y="228" width="17.1239%" height="15" fill="rgb(249,33,26)"/><text x="11.6029%" y="238.50">OGRWktReadPointsM (libgdal...</text></g><g><title>OGRWktReadToken (libgdal.so.26.0.4) (11 samples, 1.04%)</title><rect x="27.4361%" y="244" width="1.0407%" height="15" fill="rgb(235,183,28)"/><text x="27.6861%" y="254.50"></text></g><g><title>OGRPolygon::importFromWKTListOnly (libgdal.so.26.0.4) (207 samples, 19.58%)</title><rect x="9.0823%" y="212" width="19.5837%" height="15" fill="rgb(221,5,38)"/><text x="9.3323%" y="222.50">OGRPolygon::importFromWKTListOn..</text></g><g><title>OGRPolygon::importFromWkt (libgdal.so.26.0.4) (227 samples, 21.48%)</title><rect x="7.2848%" y="196" width="21.4759%" height="15" fill="rgb(247,18,42)"/><text x="7.5348%" y="206.50">OGRPolygon::importFromWkt (libgdal..</text></g><g><title>OGRGeometryFactory::createFromWkt (libgdal.so.26.0.4) (251 samples, 23.75%)</title><rect x="5.9603%" y="164" width="23.7465%" height="15" fill="rgb(241,131,45)"/><text x="6.2103%" y="174.50">OGRGeometryFactory::createFromWkt (lib..</text></g><g><title>OGRGeometryFactory::createFromWkt (libgdal.so.26.0.4) (251 samples, 23.75%)</title><rect x="5.9603%" y="180" width="23.7465%" height="15" fill="rgb(249,31,29)"/><text x="6.2103%" y="190.50">OGRGeometryFactory::createFromWkt (lib..</text></g><g><title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_construct&lt;char const*&gt; (basic_string.h:255) (15 samples, 1.42%)</title><rect x="30.3690%" y="228" width="1.4191%" height="15" fill="rgb(225,111,53)"/><text x="30.6190%" y="238.50"></text></g><g><title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_construct_aux&lt;char const*&gt; (basic_string.h:236) (14 samples, 1.32%)</title><rect x="30.4636%" y="244" width="1.3245%" height="15" fill="rgb(238,160,17)"/><text x="30.7136%" y="254.50"></text></g><g><title>arctern::gis::gdal::Wrapper_createFromWkt (gis_functions.cpp:216) (275 samples, 26.02%)</title><rect x="5.8657%" y="148" width="26.0170%" height="15" fill="rgb(214,148,48)"/><text x="6.1157%" y="158.50">arctern::gis::gdal::Wrapper_createFromWkt ..</text></g><g><title>arrow::BaseBinaryArray&lt;arrow::BinaryType&gt;::GetString[abi:cxx11] (array.h:831) (23 samples, 2.18%)</title><rect x="29.7067%" y="164" width="2.1760%" height="15" fill="rgb(232,36,49)"/><text x="29.9567%" y="174.50">a..</text></g><g><title>nonstd::sv_lite::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::operator std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;&lt;std::allocator&lt;char&gt; &gt; (string_view.hpp:905) (17 samples, 1.61%)</title><rect x="30.2744%" y="180" width="1.6083%" height="15" fill="rgb(209,103,24)"/><text x="30.5244%" y="190.50"></text></g><g><title>nonstd::sv_lite::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::to_string&lt;std::allocator&lt;char&gt; &gt; (string_view.hpp:917) (17 samples, 1.61%)</title><rect x="30.2744%" y="196" width="1.6083%" height="15" fill="rgb(229,88,8)"/><text x="30.5244%" y="206.50"></text></g><g><title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::basic_string&lt;char const*, void&gt; (basic_string.h:607) (17 samples, 1.61%)</title><rect x="30.2744%" y="212" width="1.6083%" height="15" fill="rgb(213,181,19)"/><text x="30.5244%" y="222.50"></text></g><g><title>arctern::gis::gdal::ST_IsSimple (gis_functions.cpp:356) (282 samples, 26.68%)</title><rect x="5.3926%" y="132" width="26.6793%" height="15" fill="rgb(254,191,54)"/><text x="5.6426%" y="142.50">arctern::gis::gdal::ST_IsSimple (gis_functi..</text></g><g><title>geos::operation::IsSimpleOp::computeSimple (libgeos-3.8.0.so) (19 samples, 1.80%)</title><rect x="33.3018%" y="196" width="1.7975%" height="15" fill="rgb(241,83,37)"/><text x="33.5518%" y="206.50">g..</text></g><g><title>geos::geom::util::LinearComponentExtracter::getLines (libgeos-3.8.0.so) (12 samples, 1.14%)</title><rect x="35.3832%" y="212" width="1.1353%" height="15" fill="rgb(233,36,39)"/><text x="35.6332%" y="222.50"></text></g><g><title>geos::geom::Polygon::apply_ro (libgeos-3.8.0.so) (11 samples, 1.04%)</title><rect x="35.4778%" y="228" width="1.0407%" height="15" fill="rgb(226,3,54)"/><text x="35.7278%" y="238.50"></text></g><g><title>__dynamic_cast (dyncast.cc:73) (15 samples, 1.42%)</title><rect x="38.1268%" y="260" width="1.4191%" height="15" fill="rgb(245,192,40)"/><text x="38.3768%" y="270.50"></text></g><g><title>geos::geomgraph::Edge::Edge (libgeos-3.8.0.so) (13 samples, 1.23%)</title><rect x="39.8297%" y="276" width="1.2299%" height="15" fill="rgb(238,167,29)"/><text x="40.0797%" y="286.50"></text></g><g><title>geos::geomgraph::GeometryGraph::insertBoundaryPoint (libgeos-3.8.0.so) (11 samples, 1.04%)</title><rect x="41.0596%" y="276" width="1.0407%" height="15" fill="rgb(232,182,51)"/><text x="41.3096%" y="286.50"></text></g><g><title>geos::operation::valid::RepeatedPointRemover::removeRepeatedPoints (libgeos-3.8.0.so) (16 samples, 1.51%)</title><rect x="42.5733%" y="276" width="1.5137%" height="15" fill="rgb(231,60,39)"/><text x="42.8233%" y="286.50"></text></g><g><title>geos::geomgraph::GeometryGraph::add (libgeos-3.8.0.so) (72 samples, 6.81%)</title><rect x="37.6537%" y="244" width="6.8117%" height="15" fill="rgb(208,69,12)"/><text x="37.9037%" y="254.50">geos::geo..</text></g><g><title>geos::geomgraph::GeometryGraph::addLineString (libgeos-3.8.0.so) (52 samples, 4.92%)</title><rect x="39.5459%" y="260" width="4.9196%" height="15" fill="rgb(235,93,37)"/><text x="39.7959%" y="270.50">geos::..</text></g><g><title>geos::geomgraph::GeometryGraph::GeometryGraph (libgeos-3.8.0.so) (81 samples, 7.66%)</title><rect x="37.3699%" y="228" width="7.6632%" height="15" fill="rgb(213,116,39)"/><text x="37.6199%" y="238.50">geos::geom..</text></g><g><title>geos::geomgraph::index::MonotoneChainIndexer::findChainEnd (libgeos-3.8.0.so) (14 samples, 1.32%)</title><rect x="48.9120%" y="356" width="1.3245%" height="15" fill="rgb(222,207,29)"/><text x="49.1620%" y="366.50"></text></g><g><title>geos::geomgraph::index::MonotoneChainEdge::MonotoneChainEdge (libgeos-3.8.0.so) (24 samples, 2.27%)</title><rect x="48.8174%" y="324" width="2.2706%" height="15" fill="rgb(206,96,30)"/><text x="49.0674%" y="334.50">g..</text></g><g><title>geos::geomgraph::index::MonotoneChainIndexer::getChainStartIndices (libgeos-3.8.0.so) (24 samples, 2.27%)</title><rect x="48.8174%" y="340" width="2.2706%" height="15" fill="rgb(218,138,4)"/><text x="49.0674%" y="350.50">g..</text></g><g><title>geos::geomgraph::Edge::getMonotoneChainEdge (libgeos-3.8.0.so) (26 samples, 2.46%)</title><rect x="48.7228%" y="308" width="2.4598%" height="15" fill="rgb(250,191,14)"/><text x="48.9728%" y="318.50">ge..</text></g><g><title>geos::geomgraph::index::SimpleMCSweepLineIntersector::add (libgeos-3.8.0.so) (42 samples, 3.97%)</title><rect x="48.1552%" y="276" width="3.9735%" height="15" fill="rgb(239,60,40)"/><text x="48.4052%" y="286.50">geos..</text></g><g><title>geos::geomgraph::index::SimpleMCSweepLineIntersector::add (libgeos-3.8.0.so) (40 samples, 3.78%)</title><rect x="48.3444%" y="292" width="3.7843%" height="15" fill="rgb(206,27,48)"/><text x="48.5944%" y="302.50">geos..</text></g><g><title>geos::algorithm::CGAlgorithmsDD::orientationIndex (libgeos-3.8.0.so) (39 samples, 3.69%)</title><rect x="58.1835%" y="372" width="3.6897%" height="15" fill="rgb(225,35,8)"/><text x="58.4335%" y="382.50">geos..</text></g><g><title>geos::algorithm::CGAlgorithmsDD::orientationIndexFilter (libgeos-3.8.0.so) (23 samples, 2.18%)</title><rect x="59.6973%" y="388" width="2.1760%" height="15" fill="rgb(250,213,24)"/><text x="59.9473%" y="398.50">g..</text></g><g><title>geos::algorithm::LineIntersector::computeIntersection (libgeos-3.8.0.so) (57 samples, 5.39%)</title><rect x="57.2375%" y="340" width="5.3926%" height="15" fill="rgb(247,123,22)"/><text x="57.4875%" y="350.50">geos::a..</text></g><g><title>geos::algorithm::LineIntersector::computeIntersect (libgeos-3.8.0.so) (55 samples, 5.20%)</title><rect x="57.4267%" y="356" width="5.2034%" height="15" fill="rgb(231,138,38)"/><text x="57.6767%" y="366.50">geos::..</text></g><g><title>geos::geomgraph::Edge::addIntersections (libgeos-3.8.0.so) (26 samples, 2.46%)</title><rect x="63.1977%" y="340" width="2.4598%" height="15" fill="rgb(231,145,46)"/><text x="63.4477%" y="350.50">ge..</text></g><g><title>geos::geomgraph::EdgeIntersectionList::add (libgeos-3.8.0.so) (15 samples, 1.42%)</title><rect x="64.2384%" y="356" width="1.4191%" height="15" fill="rgb(251,118,11)"/><text x="64.4884%" y="366.50"></text></g><g><title>std::vector&lt;geos::geomgraph::EdgeIntersection, std::allocator&lt;geos::geomgraph::EdgeIntersection&gt; &gt;::emplace_back&lt;geos::geom::Coordinate const&amp;, unsigned long&amp;, double&amp;&gt; (libgeos-3.8.0.so) (15 samples, 1.42%)</title><rect x="64.2384%" y="372" width="1.4191%" height="15" fill="rgb(217,147,25)"/><text x="64.4884%" y="382.50"></text></g><g><title>std::vector&lt;geos::geomgraph::EdgeIntersection, std::allocator&lt;geos::geomgraph::EdgeIntersection&gt; &gt;::_M_realloc_insert&lt;geos::geom::Coordinate const&amp;, unsigned long&amp;, double&amp;&gt; (libgeos-3.8.0.so) (15 samples, 1.42%)</title><rect x="64.2384%" y="388" width="1.4191%" height="15" fill="rgb(247,81,37)"/><text x="64.4884%" y="398.50"></text></g><g><title>geos::geomgraph::index::MonotoneChainEdge::computeIntersectsForChain (libgeos-3.8.0.so) (125 samples, 11.83%)</title><rect x="54.0208%" y="308" width="11.8259%" height="15" fill="rgb(209,12,38)"/><text x="54.2708%" y="318.50">geos::geomgraph::i..</text></g><g><title>geos::geomgraph::index::SegmentIntersector::addIntersections (libgeos-3.8.0.so) (97 samples, 9.18%)</title><rect x="56.6698%" y="324" width="9.1769%" height="15" fill="rgb(227,1,9)"/><text x="56.9198%" y="334.50">geos::geomgra..</text></g><g><title>geos::algorithm::CGAlgorithmsDD::orientationIndex (libgeos-3.8.0.so) (15 samples, 1.42%)</title><rect x="66.4144%" y="356" width="1.4191%" height="15" fill="rgb(248,47,43)"/><text x="66.6644%" y="366.50"></text></g><g><title>geos::algorithm::LineIntersector::computeIntersection (libgeos-3.8.0.so) (22 samples, 2.08%)</title><rect x="66.0360%" y="324" width="2.0814%" height="15" fill="rgb(221,10,30)"/><text x="66.2860%" y="334.50">g..</text></g><g><title>geos::algorithm::LineIntersector::computeIntersect (libgeos-3.8.0.so) (22 samples, 2.08%)</title><rect x="66.0360%" y="340" width="2.0814%" height="15" fill="rgb(210,229,1)"/><text x="66.2860%" y="350.50">g..</text></g><g><title>geos::geomgraph::index::SimpleMCSweepLineIntersector::computeIntersections (libgeos-3.8.0.so) (218 samples, 20.62%)</title><rect x="47.5875%" y="260" width="20.6244%" height="15" fill="rgb(222,148,37)"/><text x="47.8375%" y="270.50">geos::geomgraph::index::SimpleMC..</text></g><g><title>geos::geomgraph::index::SimpleMCSweepLineIntersector::processOverlaps (libgeos-3.8.0.so) (162 samples, 15.33%)</title><rect x="52.8855%" y="276" width="15.3264%" height="15" fill="rgb(234,67,33)"/><text x="53.1355%" y="286.50">geos::geomgraph::index:..</text></g><g><title>geos::geomgraph::index::MonotoneChainEdge::computeIntersectsForChain (libgeos-3.8.0.so) (155 samples, 14.66%)</title><rect x="53.5478%" y="292" width="14.6641%" height="15" fill="rgb(247,98,35)"/><text x="53.7978%" y="302.50">geos::geomgraph::index..</text></g><g><title>geos::geomgraph::index::SegmentIntersector::addIntersections (libgeos-3.8.0.so) (25 samples, 2.37%)</title><rect x="65.8467%" y="308" width="2.3652%" height="15" fill="rgb(247,138,52)"/><text x="66.0967%" y="318.50">ge..</text></g><g><title>geos::geomgraph::index::SimpleMCSweepLineIntersector::~SimpleMCSweepLineIntersector (libgeos-3.8.0.so) (14 samples, 1.32%)</title><rect x="68.2119%" y="260" width="1.3245%" height="15" fill="rgb(213,79,30)"/><text x="68.4619%" y="270.50"></text></g><g><title>cfree (libc-2.27.so) (13 samples, 1.23%)</title><rect x="68.3065%" y="276" width="1.2299%" height="15" fill="rgb(246,177,23)"/><text x="68.5565%" y="286.50"></text></g><g><title>geos::geomgraph::GeometryGraph::computeSelfNodes (libgeos-3.8.0.so) (262 samples, 24.79%)</title><rect x="45.0331%" y="228" width="24.7871%" height="15" fill="rgb(230,62,27)"/><text x="45.2831%" y="238.50">geos::geomgraph::GeometryGraph::computeS..</text></g><g><title>geos::geomgraph::GeometryGraph::computeSelfNodes (libgeos-3.8.0.so) (262 samples, 24.79%)</title><rect x="45.0331%" y="244" width="24.7871%" height="15" fill="rgb(216,154,8)"/><text x="45.2831%" y="254.50">geos::geomgraph::GeometryGraph::computeS..</text></g><g><title>geos::geomgraph::PlanarGraph::~PlanarGraph (libgeos-3.8.0.so) (15 samples, 1.42%)</title><rect x="69.8202%" y="228" width="1.4191%" height="15" fill="rgb(244,35,45)"/><text x="70.0702%" y="238.50"></text></g><g><title>geos::operation::IsSimpleOp::hasClosedEndpointIntersection (libgeos-3.8.0.so) (15 samples, 1.42%)</title><rect x="71.2394%" y="228" width="1.4191%" height="15" fill="rgb(251,115,12)"/><text x="71.4894%" y="238.50"></text></g><g><title>GEOSisSimple_r (libgeos_c.so.1.13.1) (423 samples, 40.02%)</title><rect x="33.0180%" y="164" width="40.0189%" height="15" fill="rgb(240,54,50)"/><text x="33.2680%" y="174.50">GEOSisSimple_r (libgeos_c.so.1.13.1)</text></g><g><title>geos::geom::Geometry::isSimple (libgeos-3.8.0.so) (420 samples, 39.74%)</title><rect x="33.3018%" y="180" width="39.7351%" height="15" fill="rgb(233,84,52)"/><text x="33.5518%" y="190.50">geos::geom::Geometry::isSimple (libgeos-3.8.0.so)</text></g><g><title>geos::operation::IsSimpleOp::isSimplePolygonal (libgeos-3.8.0.so) (401 samples, 37.94%)</title><rect x="35.0993%" y="196" width="37.9376%" height="15" fill="rgb(207,117,47)"/><text x="35.3493%" y="206.50">geos::operation::IsSimpleOp::isSimplePolygonal (libgeos-3.8.0...</text></g><g><title>geos::operation::IsSimpleOp::isSimpleLinearGeometry (libgeos-3.8.0.so) (386 samples, 36.52%)</title><rect x="36.5184%" y="212" width="36.5184%" height="15" fill="rgb(249,43,39)"/><text x="36.7684%" y="222.50">geos::operation::IsSimpleOp::isSimpleLinearGeometry (libgeo..</text></g><g><title>geos::geom::GeometryFactory::createLinearRing (libgeos-3.8.0.so) (12 samples, 1.14%)</title><rect x="76.8212%" y="276" width="1.1353%" height="15" fill="rgb(209,38,44)"/><text x="77.0712%" y="286.50"></text></g><g><title>std::basic_istream&lt;char, std::char_traits&lt;char&gt; &gt;::read (istream.tcc:667) (22 samples, 2.08%)</title><rect x="81.6462%" y="308" width="2.0814%" height="15" fill="rgb(236,212,23)"/><text x="81.8962%" y="318.50">s..</text></g><g><title>geos::io::WKBReader::readCoordinateSequence (libgeos-3.8.0.so) (65 samples, 6.15%)</title><rect x="77.9565%" y="276" width="6.1495%" height="15" fill="rgb(242,79,21)"/><text x="78.2065%" y="286.50">geos::io..</text></g><g><title>geos::io::WKBReader::readCoordinate (libgeos-3.8.0.so) (50 samples, 4.73%)</title><rect x="79.3756%" y="292" width="4.7304%" height="15" fill="rgb(211,96,35)"/><text x="79.6256%" y="302.50">geos::..</text></g><g><title>geos::io::WKBReader::readLinearRing (libgeos-3.8.0.so) (79 samples, 7.47%)</title><rect x="76.7266%" y="260" width="7.4740%" height="15" fill="rgb(253,215,40)"/><text x="76.9766%" y="270.50">geos::io::..</text></g><g><title>geos::io::WKBReader::readPolygon (libgeos-3.8.0.so) (96 samples, 9.08%)</title><rect x="75.8751%" y="244" width="9.0823%" height="15" fill="rgb(211,81,21)"/><text x="76.1251%" y="254.50">geos::io::WKB..</text></g><g><title>geos::io::WKBReader::read (libgeos-3.8.0.so) (122 samples, 11.54%)</title><rect x="75.0237%" y="212" width="11.5421%" height="15" fill="rgb(208,190,38)"/><text x="75.2737%" y="222.50">geos::io::WKBRead..</text></g><g><title>geos::io::WKBReader::readGeometry (libgeos-3.8.0.so) (121 samples, 11.45%)</title><rect x="75.1183%" y="228" width="11.4475%" height="15" fill="rgb(235,213,38)"/><text x="75.3683%" y="238.50">geos::io::WKBRead..</text></g><g><title>std::basic_ios&lt;char, std::char_traits&lt;char&gt; &gt;::_M_cache_locale (basic_ios.tcc:159) (13 samples, 1.23%)</title><rect x="88.3633%" y="228" width="1.2299%" height="15" fill="rgb(237,122,38)"/><text x="88.6133%" y="238.50"></text></g><g><title>std::basic_ios&lt;char, std::char_traits&lt;char&gt; &gt;::init (basic_ios.tcc:152) (44 samples, 4.16%)</title><rect x="88.0795%" y="212" width="4.1627%" height="15" fill="rgb(244,218,35)"/><text x="88.3295%" y="222.50">std::..</text></g><g><title>GEOSGeomFromWKB_buf_r (libgeos_c.so.1.13.1) (206 samples, 19.49%)</title><rect x="74.0776%" y="196" width="19.4891%" height="15" fill="rgb(240,68,47)"/><text x="74.3276%" y="206.50">GEOSGeomFromWKB_buf_r (libgeos_..</text></g><g><title>OGRGeometry::exportToGEOS (libgdal.so.26.0.4) (219 samples, 20.72%)</title><rect x="73.0369%" y="164" width="20.7190%" height="15" fill="rgb(210,16,53)"/><text x="73.2869%" y="174.50">OGRGeometry::exportToGEOS (libgda..</text></g><g><title>convertToGEOSGeom (libgdal.so.26.0.4) (216 samples, 20.44%)</title><rect x="73.3207%" y="180" width="20.4352%" height="15" fill="rgb(235,124,12)"/><text x="73.5707%" y="190.50">convertToGEOSGeom (libgdal.so.26..</text></g><g><title>geos::geom::Polygon::~Polygon (libgeos-3.8.0.so) (12 samples, 1.14%)</title><rect x="94.5128%" y="164" width="1.1353%" height="15" fill="rgb(224,169,11)"/><text x="94.7628%" y="174.50"></text></g><g><title>OGRGeometry::IsSimple (libgdal.so.26.0.4) (678 samples, 64.14%)</title><rect x="32.4503%" y="148" width="64.1438%" height="15" fill="rgb(250,166,2)"/><text x="32.7003%" y="158.50">OGRGeometry::IsSimple (libgdal.so.26.0.4)</text></g><g><title>arrow::BooleanBuilder::Append (builder_primitive.h:298) (12 samples, 1.14%)</title><rect x="96.6887%" y="148" width="1.1353%" height="15" fill="rgb(242,216,29)"/><text x="96.9387%" y="158.50"></text></g><g><title>ST_IsSimple (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:4984) (991 samples, 93.76%)</title><rect x="4.8250%" y="84" width="93.7559%" height="15" fill="rgb(230,116,27)"/><text x="5.0750%" y="94.50">ST_IsSimple (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:4984)</text></g><g><title>ST_IsSimple (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:5005) (991 samples, 93.76%)</title><rect x="4.8250%" y="100" width="93.7559%" height="15" fill="rgb(228,99,48)"/><text x="5.0750%" y="110.50">ST_IsSimple (arctern_gis/arctern_gis_core_.cpython-37m-x86_64-linux-gnu.so:5005)</text></g><g><title>arctern::gis::ST_IsSimple (gis_functions.cpp:70) (991 samples, 93.76%)</title><rect x="4.8250%" y="116" width="93.7559%" height="15" fill="rgb(253,11,6)"/><text x="5.0750%" y="126.50">arctern::gis::ST_IsSimple (gis_functions.cpp:70)</text></g><g><title>arctern::gis::gdal::ST_IsSimple (gis_functions.cpp:367) (700 samples, 66.23%)</title><rect x="32.3557%" y="132" width="66.2252%" height="15" fill="rgb(247,143,39)"/><text x="32.6057%" y="142.50">arctern::gis::gdal::ST_IsSimple (gis_functions.cpp:367)</text></g><g><title>&lt;module&gt; (profile_geo.py:324) (1,013 samples, 95.84%)</title><rect x="4.0681%" y="52" width="95.8373%" height="15" fill="rgb(236,97,10)"/><text x="4.3181%" y="62.50">&lt;module&gt; (profile_geo.py:324)</text></g><g><title>test_ST_IsSimple (profile_geo.py:64) (1,005 samples, 95.08%)</title><rect x="4.8250%" y="68" width="95.0804%" height="15" fill="rgb(233,208,19)"/><text x="5.0750%" y="78.50">test_ST_IsSimple (profile_geo.py:64)</text></g><g><title>array (pyarrow/lib.cpython-37m-x86_64-linux-gnu.so) (14 samples, 1.32%)</title><rect x="98.5809%" y="84" width="1.3245%" height="15" fill="rgb(216,164,2)"/><text x="98.8309%" y="94.50"></text></g><g><title>lib__ndarray_to_array (pyarrow/lib.cpython-37m-x86_64-linux-gnu.so) (14 samples, 1.32%)</title><rect x="98.5809%" y="100" width="1.3245%" height="15" fill="rgb(220,129,5)"/><text x="98.8309%" y="110.50"></text></g><g><title>arrow::py::NdarrayToArrow (libarrow_python.so.16.0.0) (14 samples, 1.32%)</title><rect x="98.5809%" y="116" width="1.3245%" height="15" fill="rgb(242,17,10)"/><text x="98.8309%" y="126.50"></text></g><g><title>arrow::py::NumPyConverter::Convert (libarrow_python.so.16.0.0) (14 samples, 1.32%)</title><rect x="98.5809%" y="132" width="1.3245%" height="15" fill="rgb(242,107,0)"/><text x="98.8309%" y="142.50"></text></g><g><title>arrow::py::ConvertPySequence (libarrow_python.so.16.0.0) (14 samples, 1.32%)</title><rect x="98.5809%" y="148" width="1.3245%" height="15" fill="rgb(251,28,31)"/><text x="98.8309%" y="158.50"></text></g><g><title>arrow::py::TypedConverter&lt;arrow::StringType, arrow::py::StringConverter&lt;arrow::StringType, false, (arrow::py::NullCoding)1&gt;, (arrow::py::NullCoding)1&gt;::AppendMultiple (libarrow_python.so.16.0.0) (14 samples, 1.32%)</title><rect x="98.5809%" y="164" width="1.3245%" height="15" fill="rgb(233,223,10)"/><text x="98.8309%" y="174.50"></text></g><g><title>arrow::py::internal::VisitSequenceGeneric&lt;arrow::Status arrow::py::internal::VisitSequence&lt;arrow::py::TypedConverter&lt;arrow::StringType, arrow::py::StringConverter&lt;arrow::StringType, false, (arrow::py::NullCoding)1&gt;, (arrow::py::NullCoding)1&gt;::AppendMultiple(_object*, long)::{lambda(_object*, bool*)#1}&gt;(_object*, arrow::py::TypedConverter&lt;arrow::StringType, arrow::py::StringConverter&lt;arrow::StringType, false, (arrow::py::NullCoding)1&gt;, (arrow::py::NullCoding)1&gt;::AppendMultiple(_object*, long)::{lambda(_object*, bool*)#1}&amp;&amp;)::{lambda(_object*, long, bool*)#1}&gt; (libarrow_python.so.16.0.0) (14 samples, 1.32%)</title><rect x="98.5809%" y="180" width="1.3245%" height="15" fill="rgb(215,21,27)"/><text x="98.8309%" y="190.50"></text></g><g><title>arrow::py::TypedConverter&lt;arrow::StringType, arrow::py::StringConverter&lt;arrow::StringType, false, (arrow::py::NullCoding)1&gt;, (arrow::py::NullCoding)1&gt;::AppendSingle (libarrow_python.so.16.0.0) (14 samples, 1.32%)</title><rect x="98.5809%" y="196" width="1.3245%" height="15" fill="rgb(232,23,21)"/><text x="98.8309%" y="206.50"></text></g><g><title>all (1,057 samples, 100%)</title><rect x="0.0000%" y="36" width="100.0000%" height="15" fill="rgb(244,5,23)"/><text x="0.2500%" y="46.50"></text></g></svg></svg>

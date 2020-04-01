@@ -221,6 +221,16 @@ inline OGRGeometry* Wrapper_createFromWkt(
   return geo;
 }
 
+inline OGRGeometry* Wrapper_createFromWkb(
+    const std::shared_ptr<arrow::BinaryArray>& array, int idx) {
+  if (array->IsNull(idx)) return nullptr;
+  OGRGeometry* geo = nullptr;
+  auto err_code =
+      OGRGeometryFactory::createFromWkb(array->GetString(idx).c_str(), nullptr, &geo);
+  if (err_code) return nullptr;
+  return geo;
+}
+
 inline OGRGeometry* Wrapper_createFromWkt(const char* geo_wkt) {
   OGRGeometry* geo = nullptr;
   auto err_code = OGRGeometryFactory::createFromWkt(geo_wkt, nullptr, &geo);
@@ -256,6 +266,17 @@ inline char* Wrapper_OGR_G_ExportToWkt(OGRGeometry* geo) {
   return str;
 }
 
+inline unsigned char* Wrapper_OGR_G_ExportToWkb(OGRGeometry* geo, int size) {
+  auto* wkb = static_cast<unsigned char *>(CPLMalloc(size));
+  auto err_code = OGR_G_ExportToWkb(geo, wkbNDR, wkb);
+  if (err_code != OGRERR_NONE) {
+    std::string err_msg =
+        "failed to export to wkt, error code = " + std::to_string(err_code);
+    throw std::runtime_error(err_msg);
+  }
+  return wkb;
+}
+
 inline std::string Wrapper_OGR_G_GetGeometryName(void* geo) {
   auto ogr_geometry_name = OGR_G_GetGeometryName(geo);
   std::string adjust_geometry_name = "ST_" + std::string(ogr_geometry_name);
@@ -280,6 +301,30 @@ std::shared_ptr<arrow::Array> ST_Point(const std::shared_ptr<arrow::Array>& x_va
     CHECK_GDAL(OGR_G_ExportToWkt(&point, &wkt));
     CHECK_ARROW(builder.Append(wkt));
     CPLFree(wkt);
+  }
+  std::shared_ptr<arrow::Array> results;
+  CHECK_ARROW(builder.Finish(&results));
+  return results;
+}
+
+std::shared_ptr<arrow::Array> ST_Point_WKB(const std::shared_ptr<arrow::Array>& x_values,
+                                       const std::shared_ptr<arrow::Array>& y_values) {
+  assert(x_values->length() == y_values->length());
+  auto len = x_values->length();
+  auto x_double_values = std::static_pointer_cast<arrow::DoubleArray>(x_values);
+  auto y_double_values = std::static_pointer_cast<arrow::DoubleArray>(y_values);
+  OGRPoint point;
+  unsigned char* wkb = nullptr;
+  arrow::BinaryBuilder builder;
+
+  for (int32_t i = 0; i < len; i++) {
+    point.setX(x_double_values->Value(i));
+    point.setY(y_double_values->Value(i));
+    auto wkb_size = point.WkbSize();
+    wkb = static_cast<unsigned char *>(CPLMalloc(wkb_size));
+    CHECK_GDAL(OGR_G_ExportToWkb(&point, OGRwkbByteOrder::wkbNDR, wkb));
+    CHECK_ARROW(builder.Append(wkb, wkb_size);
+    CPLFree(wkb);
   }
   std::shared_ptr<arrow::Array> results;
   CHECK_ARROW(builder.Finish(&results));
@@ -623,6 +668,50 @@ std::shared_ptr<arrow::Array> ST_Transform(const std::shared_ptr<arrow::Array>& 
       CHECK_ARROW(builder.Append(wkt));
       OGRGeometryFactory::destroyGeometry(geo);
       CPLFree(wkt);
+    }
+  }
+
+  std::shared_ptr<arrow::Array> results;
+  CHECK_ARROW(builder.Finish(&results));
+  OCTDestroyCoordinateTransformation(poCT);
+
+  return results;
+}
+
+std::shared_ptr<arrow::Array> ST_Transform_WKB(const std::shared_ptr<arrow::Array>& geos,
+                                           const std::string& src_rs,
+                                           const std::string& dst_rs) {
+  OGRSpatialReference oSrcSRS;
+  oSrcSRS.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
+  if (oSrcSRS.SetFromUserInput(src_rs.c_str()) != OGRERR_NONE) {
+    std::string err_msg = "faild to tranform with sourceCRS = " + src_rs;
+    throw std::runtime_error(err_msg);
+  }
+
+  OGRSpatialReference oDstS;
+  oDstS.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
+  if (oDstS.SetFromUserInput(dst_rs.c_str()) != OGRERR_NONE) {
+    std::string err_msg = "faild to tranform with targetCRS = " + dst_rs;
+    throw std::runtime_error(err_msg);
+  }
+
+  void* poCT = OCTNewCoordinateTransformation(&oSrcSRS, &oDstS);
+  arrow::BinaryBuilder builder;
+
+  auto len = geos->length();
+  auto wkt_geometries = std::static_pointer_cast<arrow::BinaryArray>(geos);
+
+  for (int32_t i = 0; i < len; i++) {
+    auto geo = Wrapper_createFromWkb(wkt_geometries, i);
+    if (geo == nullptr) {
+      CHECK_ARROW(builder.AppendNull());
+    } else {
+      CHECK_GDAL(OGR_G_Transform(geo, (OGRCoordinateTransformation*)poCT));
+      auto size = geo->WkbSize();
+      auto *wkb = Wrapper_OGR_G_ExportToWkb(geo, size);
+      CHECK_ARROW(builder.Append(wkb, size));
+      OGRGeometryFactory::destroyGeometry(geo);
+      CPLFree(wkb);
     }
   }
 
