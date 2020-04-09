@@ -58,16 +58,152 @@ def gen_st_point():
                 break
 
 
+def gen_st_intersection():
+    total = rows
+    with client_hdfs.write(os.path.join(data_path, 'st_intersection.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            left = ['POINT(0 0)'] * row_per_batch
+            right = ['LINESTRING ( 2 0, 0 2 )'] * row_per_batch
+            df = pd.DataFrame(data={'left': left, 'right': right})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+
+def gen_st_isvalid():
+    total = rows
+    with client_hdfs.write(os.path.join(data_path, 'st_isvalid.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            geos = ['POINT (30 10)'] * row_per_batch
+            df = pd.DataFrame(data={'geos': geos})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+
+def gen_st_equals():
+    total = rows
+    with client_hdfs.write(os.path.join(data_path, 'st_equals.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            left = ['LINESTRING(0 0, 10 10)'] * row_per_batch
+            right = ['LINESTRING(0 0, 5 5, 10 10)'] * row_per_batch
+            df = pd.DataFrame(data={'left': left, 'right': right})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+
+def gen_st_touches():
+    total = rows
+    with client_hdfs.write(os.path.join(data_path, 'st_touches.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            left = ['LINESTRING(0 0, 1 1, 0 2)'] * row_per_batch
+            right = ['POINT(1 1)'] * row_per_batch
+            df = pd.DataFrame(data={'left': left, 'right': right})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+
+def gen_st_overlaps():
+    total = rows
+    with client_hdfs.write(os.path.join(data_path, 'st_overlaps.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            left = ['POLYGON((1 1, 4 1, 4 5, 1 5, 1 1))'] * row_per_batch
+            right = ['POLYGON((3 2, 6 2, 6 6, 3 6, 3 2))'] * row_per_batch
+            df = pd.DataFrame(data={'left': left, 'right': right})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+
+def gen_st_crosses():
+    total = rows
+    with client_hdfs.write(os.path.join(data_path, 'st_crosses.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            left = ['MULTIPOINT((1 3), (4 1), (4 3))'] * row_per_batch
+            right = ['POLYGON((2 2, 5 2, 5 5, 2 5, 2 2))'] * row_per_batch
+            df = pd.DataFrame(data={'left': left, 'right': right})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+
+class _OneColDecorator(object):
+    def __init__(self, f, line):
+        self._function_name = f.__name__
+        self._line = line
+        self._hdfs_file = os.path.join(data_path, f.__name__ + '.csv')
+
+    def __call__(self):
+        total = rows
+        with client_hdfs.write(self._hdfs_file, overwrite=True, encoding='utf-8') as writer:
+            while True:
+                geos = [self._line] * row_per_batch
+                df = pd.DataFrame(data={'geos': geos})
+                if total == rows:
+                    df.to_csv(writer, index=False)
+                else:
+                    df.to_csv(writer, index=False, header=False)
+                total -= row_per_batch
+                if total <= 0:
+                    break
+
+def OneColDecorator(f=None, line=''):
+    if f:
+        return _OneColDecorator(f)
+    else:
+        def wrapper(f):
+            return _OneColDecorator(f,line)
+        return wrapper
+
+
+
+@OneColDecorator('POLYGON((1 2, 3 4, 5 6, 1 2))')
+def gen_st_issimple():
+    pass
+
+@OneColDecorator('LINESTRING(77.29 29.07,77.42 29.26,77.27 29.31,77.29 29.07)')
+def gen_st_geometry_type():
+    pass
+
+
+
+
 funcs = {
     'st_point': gen_st_point,
-    # 'st_intersection': gen_st_intersection,
-    # 'st_isvalid': gen_st_isvalid,
-    # 'st_equals': gen_st_equals,
-    # 'st_touches': gen_st_touches,
-    # 'st_overlaps': gen_st_overlaps,
-    # 'st_crosses': gen_st_crosses,
-    # 'st_issimple': gen_st_issimple,
-    # 'st_geometry_type': gen_st_geometry_type,
+    'st_intersection': gen_st_intersection,
+    'st_isvalid': gen_st_isvalid,
+    'st_equals': gen_st_equals,
+    'st_touches': gen_st_touches,
+    'st_overlaps': gen_st_overlaps,
+    'st_crosses': gen_st_crosses,
+    'st_issimple': gen_st_issimple,
+    'st_geometry_type': gen_st_geometry_type,
     # 'st_make_valid': gen_st_make_valid,
     # 'st_simplify_preserve_topology': gen_st_simplify_preserve_topology,
     # 'st_polygon_from_envelope': gen_st_polygon_from_envelope,
