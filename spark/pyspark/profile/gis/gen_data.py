@@ -1,6 +1,7 @@
 import os
 import sys
 
+row_per_batch = 100000
 rows = 0
 hdfs_url = ""
 data_path = ""
@@ -22,6 +23,9 @@ def parse_args(argv):
         elif opt in ("-r", "--rows"):
             global rows
             rows = int(arg)
+            global row_per_batch
+            if rows < row_per_batch:
+                row_per_batch = rows
         elif opt in ("-p", "--path"):
             global data_path
             data_path = arg
@@ -38,12 +42,14 @@ from hdfs import InsecureClient
 
 
 def gen_st_point():
-    points = [0.1, 0.2]
-    df = pd.DataFrame(data=points)
-    with client_hdfs.write(os.path.join(data_path, 'st_points.csv'), encoding='utf-8') as writer:
-        for i in range(rows):
-            df.to_csv(writer)
-
+    total = rows
+    while True:
+        points = [0.1, 0.2] * row_per_batch
+        df = pd.DataFrame(data=points)
+        with client_hdfs.write(os.path.join(data_path, 'st_points.csv'), encoding='utf-8') as writer:
+            df.to_csv(writer, header=False)
+        if total - row_per_batch <= 0:
+            break
 
 
 funcs = {
