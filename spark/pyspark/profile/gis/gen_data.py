@@ -160,6 +160,7 @@ class _OneColDecorator(object):
         self._hdfs_file = os.path.join(data_path, f.__name__ + '.csv')
 
     def __call__(self):
+        print(rows)
         total = rows
         with client_hdfs.write(self._hdfs_file, overwrite=True, encoding='utf-8') as writer:
             while True:
@@ -173,25 +174,25 @@ class _OneColDecorator(object):
                 if total <= 0:
                     break
 
+
 def OneColDecorator(f=None, line=''):
     if f:
         return _OneColDecorator(f)
     else:
         def wrapper(f):
-            return _OneColDecorator(f,line)
+            return _OneColDecorator(f, line)
+
         return wrapper
 
 
-
-@OneColDecorator('POLYGON((1 2, 3 4, 5 6, 1 2))')
+@OneColDecorator(line='POLYGON((1 2, 3 4, 5 6, 1 2))')
 def gen_st_issimple():
     pass
 
-@OneColDecorator('LINESTRING(77.29 29.07,77.42 29.26,77.27 29.31,77.29 29.07)')
+
+@OneColDecorator(line='LINESTRING(77.29 29.07,77.42 29.26,77.27 29.31,77.29 29.07)')
 def gen_st_geometry_type():
     pass
-
-
 
 
 funcs = {
