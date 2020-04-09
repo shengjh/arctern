@@ -37,19 +37,25 @@ def parse_args(argv):
             hdfs_url = arg
     data_path = os.path.join(data_path, str(rows))
 
+
 import pandas as pd
 from hdfs import InsecureClient
 
 
 def gen_st_point():
     total = rows
-    while True:
-        points = [0.1, 0.2] * row_per_batch
-        df = pd.DataFrame(data=points)
-        with client_hdfs.write(os.path.join(data_path, 'st_points.csv'), encoding='utf-8') as writer:
-            df.to_csv(writer, header=False)
-        if total - row_per_batch <= 0:
-            break
+    with client_hdfs.write(os.path.join(data_path, 'st_points.csv'), overwrite=True, encoding='utf-8') as writer:
+        while True:
+            x = [0.1] * row_per_batch
+            y = [0.2] * row_per_batch
+            df = pd.DataFrame(data={'x': x, 'y': y})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
 
 
 funcs = {
