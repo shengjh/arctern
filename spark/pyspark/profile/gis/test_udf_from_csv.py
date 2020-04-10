@@ -26,6 +26,7 @@ from pyspark.sql import SparkSession
 data_path = ""
 output_path = ""
 test_name = []
+hdfs_url = ""
 client_hdfs = None
 
 
@@ -420,14 +421,15 @@ def parse_args(argv):
         elif opt in ("-o", "--output"):
             global output_path
             output_path = arg
+    global hdfs_url
+    hdfs_url = "http://" + remove_prefix(output_path, "hdfs://").split("/", 1)[0]
 
 
 if __name__ == "__main__":
     parse_args(sys.argv[1:])
     actual_out_path = remove_prefix(output_path, "hdfs://")
     if is_hdfs(output_path):
-        hdfs_url = actual_out_path.split("/", 1)[0]
-        client_hdfs = hdfs.InsecureClient('http://', hdfs_url)
+        client_hdfs = hdfs.InsecureClient(hdfs_url)
         client_hdfs.makedirs(actual_out_path)
     else:
         os.makedirs(actual_out_path, exist_ok=True)

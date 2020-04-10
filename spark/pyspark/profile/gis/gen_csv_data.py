@@ -6,6 +6,7 @@ rows = 0
 to_hdfs = False
 output_path = ""
 test_name = []
+hdfs_url = ""
 client_hdfs = None
 
 
@@ -47,6 +48,10 @@ def parse_args(argv):
             test_name = arg.split(',')
     global output_path
     output_path = remove_prefix(os.path.join(tmp_path, str(rows)), "hdfs://")
+    if to_hdfs:
+        global hdfs_url
+        hdfs_url = "http://" + output_path.split("/", 1)[0]
+        output_path = output_path[output_path.find('/'):]
 
 
 import pandas as pd
@@ -381,8 +386,7 @@ funcs = {
 if __name__ == "__main__":
     parse_args(sys.argv[1:])
     if to_hdfs:
-        hdfs_url = output_path.split("/", 1)[0]
-        client_hdfs = InsecureClient('http://' + hdfs_url)
+        client_hdfs = InsecureClient(hdfs_url)
         client_hdfs.makedirs(output_path)
     else:
         os.makedirs(output_path, exist_ok=True)
