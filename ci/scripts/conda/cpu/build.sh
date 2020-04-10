@@ -46,7 +46,7 @@ env
 
 logger "Activate conda env..."
 eval "$(conda shell.bash hook)"
-conda activate zgis_dev
+conda activate arctern
 
 if [ -n "${CONDA_CUSTOM_CHANNEL}" ]; then
     conda config --add channels ${CONDA_CUSTOM_CHANNEL}
@@ -66,14 +66,14 @@ conda list
 conda config --set ssl_verify False
 
 ################################################################################
-# BUILD - Conda package builds (conda deps: libarctern <- arctern <- arctern-spark)
+# BUILD - Conda package builds (conda deps: libarctern <- pyarctern <- arctern-spark)
 ################################################################################
 
 logger "Build conda pkg for libarctern..."
 source ci/scripts/conda/cpu/libarctern/build_libarctern.sh
 
-logger "Build conda pkg for arctern..."
-source ci/scripts/conda/cpu/arctern/build_arctern.sh
+logger "Build conda pkg for pyarctern..."
+source ci/scripts/conda/cpu/pyarctern/build_pyarctern.sh
 
 logger "Build conda pkg for arctern-spark..."
 source ci/scripts/conda/cpu/arctern-spark/build_arctern-spark.sh

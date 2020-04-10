@@ -17,16 +17,6 @@
 
 #include "render/utils/color/color_gradient.h"
 
-#define WHITE 0xFFFFFF;
-#define YELLOW 0xFFFF00;    //  :255,255,0
-#define ORANGE 0xFF7D00;    //  :255,125,0
-#define PURPLE 0xFF00FF;    //  :255,0,25
-#define RED 0xFF0000;       //  :255,0,0
-#define CYANBLUE 0x00FFFF;  //  :0,255,255
-#define GREEN 0x00FF00;     //  :0,255,0
-#define BLUE 0x0000FF;      //  :0,0,255
-#define SKYBLUE 0xB4E7F5;
-
 #define TRANSPARENCY 0.5f
 
 namespace arctern {
@@ -34,11 +24,11 @@ namespace render {
 
 void ColorGradient::createDefaultHeatMapGradient() {
   color.clear();
-  color.push_back(ColorPoint(0, 0, 1, 0.0f));   // Blue.
-  color.push_back(ColorPoint(0, 1, 1, 0.25f));  // Cyan.
-  color.push_back(ColorPoint(0, 1, 0, 0.5f));   // Green.
-  color.push_back(ColorPoint(1, 1, 0, 0.75f));  // Yellow.
-  color.push_back(ColorPoint(1, 0, 0, 1.0f));   // Red.
+  color.push_back(Color(0, 0, 1, 0.0f));   // Blue.
+  color.push_back(Color(0, 1, 1, 0.25f));  // Cyan.
+  color.push_back(Color(0, 1, 0, 0.5f));   // Green.
+  color.push_back(Color(1, 1, 0, 0.75f));  // Yellow.
+  color.push_back(Color(1, 0, 0, 1.0f));   // Red.
 }
 
 void ColorGradient::getColorAtValue(const float value, float& red, float& green,
@@ -46,12 +36,12 @@ void ColorGradient::getColorAtValue(const float value, float& red, float& green,
   if (color.size() == 0) return;
 
   for (unsigned int i = 0; i < color.size(); i++) {
-    ColorPoint& curr_color = color[i];
-    if (value < curr_color.val) {
+    Color& curr_color = color[i];
+    if (value < curr_color.a) {
       int index = (i - 1) > 0 ? i - 1 : 0;
-      ColorPoint& prev_color = color[index];
-      float value_diff = (prev_color.val - curr_color.val);
-      float fract_between = (value_diff == 0) ? 0 : (value - curr_color.val) / value_diff;
+      Color& prev_color = color[index];
+      float value_diff = (prev_color.a - curr_color.a);
+      float fract_between = (value_diff == 0) ? 0 : (value - curr_color.a) / value_diff;
       red = (prev_color.r - curr_color.r) * fract_between + curr_color.r;
       green = (prev_color.g - curr_color.g) * fract_between + curr_color.g;
       blue = (prev_color.b - curr_color.b) * fract_between + curr_color.b;
@@ -64,106 +54,21 @@ void ColorGradient::getColorAtValue(const float value, float& red, float& green,
   return;
 }
 
-void HexToRGB(int64_t color, CircleParams& circle_params_2d, ColorStyle color_style) {
-  switch (color_style) {
-    case ColorStyle::kBlueToRed:
-    case ColorStyle::kPurpleToYellow:
-    case ColorStyle::kSkyBlueToWhite:
-      circle_params_2d.color.r = (color >> 16 & 0xff) / 255.0f;
-      circle_params_2d.color.g = (color >> 8 & 0xff) / 255.0f;
-      circle_params_2d.color.b = (color & 0xff) / 255.0f;
-      break;
-    case ColorStyle::kBlueTransParency:
-    case ColorStyle::kRedTransParency: {
-      circle_params_2d.color.r = (color >> 16 & 0xff) / 255.0f;
-      circle_params_2d.color.g = (color >> 8 & 0xff) / 255.0f;
-      circle_params_2d.color.b = (color & 0xff) / 255.0f;
-      break;
-    }
-    default: {
-      std::string msg = "cannot find color style";
-      // TODO: add log here
-      break;
-    }
+Color ColorGradient::GetColor(Color color_start, Color color_end, double ratio) {
+  Color color;
+  if (color_start == color_end) {
+    color.r = color_start.r;
+    color.g = color_start.g;
+    color.b = color_start.b;
+    color.a = ratio;
+  } else {
+    color.r = color_start.r + (color_end.r - color_start.r) * ratio;
+    color.g = color_start.g + (color_end.g - color_start.g) * ratio;
+    color.b = color_start.b + (color_end.b - color_start.b) * ratio;
+    color.a = color_start.a;
   }
-}
 
-CircleParams ColorGradient::GetCircleParams(arctern::render::ColorStyle color_style,
-                                            double ratio) {
-  CircleParams circle_params_2d;
-
-  switch (color_style) {
-    case ColorStyle::kBlueToRed: {
-      circle_params_2d.color.a = 1.0;
-      circle_params_2d.color.r = ratio;
-      circle_params_2d.color.g = 0.0;
-      circle_params_2d.color.b = 1 - ratio;
-      break;
-    }
-    case ColorStyle::kPurpleToYellow: {
-      circle_params_2d.color.a = 1.0;
-      circle_params_2d.color.r = 1.0;
-      circle_params_2d.color.g = ratio;
-      circle_params_2d.color.b = 1 - ratio;
-      break;
-    }
-    case ColorStyle::kSkyBlueToWhite: {
-      int64_t sky_blue = SKYBLUE;
-      circle_params_2d.color.a = 1.0;
-      circle_params_2d.color.r = ((255 - (sky_blue >> 16 & 0xff)) * ratio) / 255.0f;
-      circle_params_2d.color.g = ((255 - (sky_blue >> 8 & 0xff)) * ratio) / 255.0f;
-      circle_params_2d.color.b = ((255 - (sky_blue & 0xff)) * ratio) / 255.0f;
-      break;
-    }
-    case ColorStyle::kRedTransParency: {
-      int64_t red_lp = RED;
-      circle_params_2d.color.a = ratio + TRANSPARENCY;
-
-      HexToRGB(red_lp, circle_params_2d, color_style);
-      break;
-    }
-    case ColorStyle::kBlueTransParency: {
-      int64_t blue_lp = BLUE;
-      circle_params_2d.color.a = ratio + TRANSPARENCY;
-
-      HexToRGB(blue_lp, circle_params_2d, color_style);
-      break;
-    }
-    case ColorStyle::kBlueGreenYellow: {
-      circle_params_2d.color.r = (17.0f + (208.0f - 17.0f) * ratio) / 255.0f;
-      circle_params_2d.color.g = (95.0f + (244.0f - 95.0f) * ratio) / 255.0f;
-      circle_params_2d.color.b = (154.0f * (1.0f - ratio)) / 255.0f;
-      circle_params_2d.color.a = 1.0;
-      break;
-    }
-    case ColorStyle::kWhiteToBlue: {
-      circle_params_2d.color.r = (226.0f + (17.0f - 226.0f) * ratio) / 255.0f;
-      circle_params_2d.color.g = (226.0f + (95.0f - 226.0f) * ratio) / 255.0f;
-      circle_params_2d.color.b = (226.0f + (154.0f - 226.0f) * ratio) / 255.0f;
-      circle_params_2d.color.a = 1.0;
-      break;
-    }
-    case ColorStyle::kGreenYellowRed: {
-      circle_params_2d.color.r = (77.0f + (194.0f - 77.0f) * ratio) / 255.0f;
-      circle_params_2d.color.g = (144.0f + (55.0f - 144.0f) * ratio) / 255.0f;
-      circle_params_2d.color.b = (79.0f + (40.0f - 79.0f) * ratio) / 255.0f;
-      circle_params_2d.color.a = 1.0;
-      break;
-    }
-    case ColorStyle::kBlueWhiteRed: {
-      circle_params_2d.color.r = (25.0f + (194.0f - 25.0f) * ratio) / 255.0f;
-      circle_params_2d.color.g = (132.0f + (55.0f - 132.0f) * ratio) / 255.0f;
-      circle_params_2d.color.b = (197.0f + (40.0f - 197.0f) * ratio) / 255.0f;
-      circle_params_2d.color.a = 1.0;
-      break;
-    }
-    default: {
-      std::string msg = "cannot find color style";
-      // TODO: add log here
-      break;
-    }
-  }
-  return circle_params_2d;
+  return color;
 }
 
 }  // namespace render

@@ -24,13 +24,18 @@
 namespace arctern {
 namespace render {
 
+void guassiankernel2d(float* kernel, int sizeX, int sizeY, float sigmaX, float sigmaY);
+
+template <typename T>
+void set_colors_gpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* input_c,
+                    int64_t num, VegaHeatMap& vega_heat_map);
+
+#ifndef USE_GPU
 void HeatMapArray_cpu(float* in_count, float* out_count, float* kernel,
                       int64_t kernel_size, int64_t width, int64_t height);
 
 void MeanKernel_cpu(float* img_in, float* img_out, int64_t r, int64_t img_w,
                     int64_t img_h);
-
-void guassiankernel2d(float* kernel, int sizeX, int sizeY, float sigmaX, float sigmaY);
 
 template <typename T>
 void SetCountValue_cpu(float* out, uint32_t* in_x, uint32_t* in_y, T* in_c, int64_t num,
@@ -39,15 +44,12 @@ void SetCountValue_cpu(float* out, uint32_t* in_x, uint32_t* in_y, T* in_c, int6
     uint32_t vertice_x = in_x[i];
     uint32_t vertice_y = height - in_y[i] - 1;
     if (vertice_y > height || vertice_x > width) continue;
+    if (vertice_y < 0 || vertice_x < 0) continue;
     int64_t index = vertice_y * width + vertice_x;
     if (index >= width * height) continue;
     out[index] += in_c[i];
   }
 }
-
-template <typename T>
-void set_colors_gpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* input_c,
-                    int64_t num, VegaHeatMap& vega_heat_map);
 
 template <typename T>
 void set_colors_cpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* input_c,
@@ -61,7 +63,7 @@ void set_colors_cpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* inpu
   memset(pix_count, 0, window_size * sizeof(float));
   SetCountValue_cpu<T>(pix_count, input_x, input_y, input_c, num, width, height);
 
-  double scale = vega_heat_map.map_scale() * 0.4;
+  double scale = vega_heat_map.map_zoom_level() * 0.4;
   int d = pow(2, scale);
   float kernel_size = d * 2 + 3;
 
@@ -69,6 +71,7 @@ void set_colors_cpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* inpu
   guassiankernel2d(kernel, kernel_size, kernel_size, kernel_size, kernel_size);
 
   float* heat_count = (float*)malloc(window_size * sizeof(float));
+  memset(heat_count, 0, window_size * sizeof(float));
   HeatMapArray_cpu(pix_count, heat_count, kernel, kernel_size, width, height);
 
   float* color_count = (float*)malloc(window_size * sizeof(float));
@@ -86,7 +89,7 @@ void set_colors_cpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* inpu
 
   int64_t c_offset = 0;
   for (auto j = 0; j < window_size; j++) {
-    float value = heat_count[j] / max_pix;
+    float value = max_pix == 0.0f ? 0.0f : heat_count[j] / max_pix;
     float color_r, color_g, color_b;
     color_gradient.getColorAtValue(value, color_r, color_g, color_b);
     colors[c_offset++] = color_r;
@@ -100,6 +103,7 @@ void set_colors_cpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* inpu
   free(heat_count);
   free(color_count);
 }
+#endif
 
 template <typename T>
 inline void set_colors(float* colors, uint32_t* input_x, uint32_t* input_y, T* input_c,
@@ -113,19 +117,3 @@ inline void set_colors(float* colors, uint32_t* input_x, uint32_t* input_y, T* i
 
 }  // namespace render
 }  // namespace arctern
-
-//#ifdef USE_GPU
-//
-//#define TEMPLATE_GEN_PREFIX extern
-//#define T uint32_t
-//#include "set_color.inl"
-//
-//#define TEMPLATE_GEN_PREFIX extern
-//#define T float
-//#include "set_color.inl"
-//
-//#define TEMPLATE_GEN_PREFIX extern
-//#define T double
-//#include "set_color.inl"
-//
-//#endif

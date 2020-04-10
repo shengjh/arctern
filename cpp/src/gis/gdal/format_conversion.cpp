@@ -15,19 +15,21 @@
  */
 
 #include "gis/gdal/format_conversion.h"
-#include "utils/check_status.h"
 
 #include <assert.h>
 #include <ogr_api.h>
 #include <ogrsf_frmts.h>
+
 #include <memory>
 #include <string>
+
+#include "utils/check_status.h"
 
 namespace arctern {
 namespace gis {
 namespace gdal {
 
-std::shared_ptr<arrow::Array> WkbToWkt(const std::shared_ptr<arrow::Array>& wkb) {
+std::shared_ptr<arrow::StringArray> WkbToWkt(const std::shared_ptr<arrow::Array>& wkb) {
   auto wkb_array = std::static_pointer_cast<arrow::BinaryArray>(wkb);
   auto len = wkb_array->length();
   arrow::StringBuilder builder;
@@ -43,12 +45,12 @@ std::shared_ptr<arrow::Array> WkbToWkt(const std::shared_ptr<arrow::Array>& wkb)
     CPLFree(wkt);
   }
 
-  std::shared_ptr<arrow::Array> results;
+  std::shared_ptr<arrow::StringArray> results;
   CHECK_ARROW(builder.Finish(&results));
   return results;
 }
 
-std::shared_ptr<arrow::Array> WktToWkb(const std::shared_ptr<arrow::Array>& wkt) {
+std::shared_ptr<arrow::BinaryArray> WktToWkb(const std::shared_ptr<arrow::Array>& wkt) {
   auto wkt_array = std::static_pointer_cast<arrow::StringArray>(wkt);
   auto len = wkt_array->length();
   arrow::BinaryBuilder builder;
@@ -69,7 +71,7 @@ std::shared_ptr<arrow::Array> WktToWkb(const std::shared_ptr<arrow::Array>& wkt)
     OGRGeometryFactory::destroyGeometry(geo);
   }
 
-  std::shared_ptr<arrow::Array> results;
+  std::shared_ptr<arrow::BinaryArray> results;
   CHECK_ARROW(builder.Finish(&results));
   return results;
 }

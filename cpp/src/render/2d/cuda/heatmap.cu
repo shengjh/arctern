@@ -39,6 +39,7 @@ __global__ void SetCountValue_gpu(float* out, uint32_t* in_x, uint32_t* in_y, T*
     uint32_t vertice_x = in_x[i];
     uint32_t vertice_y = height - in_y[i] - 1;
     if (vertice_y > height || vertice_x > width) continue;
+    if (vertice_y < 0 || vertice_x < 0) continue;
     int64_t index = vertice_y * width + vertice_x;
     if (index >= width * height) continue;
     out[index] += in_c[i];
@@ -107,7 +108,7 @@ void set_colors_gpu(float* colors, uint32_t* input_x, uint32_t* input_y, T* inpu
   cudaMemcpy(in_c, input_c, num * sizeof(T), cudaMemcpyHostToDevice);
   SetCountValue_gpu<T><<<256, 1024>>>(pix_count, in_x, in_y, in_c, num, width, height);
 
-  double scale = vega_heat_map.map_scale() * 0.4;
+  double scale = vega_heat_map.map_zoom_level() * 0.4;
   int d = pow(2, scale);
   int64_t kernel_size = d * 2 + 3;
 
