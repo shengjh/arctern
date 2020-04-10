@@ -427,7 +427,7 @@ if __name__ == "__main__":
     actual_out_path = remove_prefix(output_path, "hdfs://")
     if is_hdfs(output_path):
         hdfs_url = actual_out_path.split("/", 1)[0]
-        client_hdfs = hdfs.InsecureClient(hdfs_url)
+        client_hdfs = hdfs.InsecureClient('http://', hdfs_url)
         client_hdfs.makedirs(actual_out_path)
     else:
         os.makedirs(actual_out_path, exist_ok=True)

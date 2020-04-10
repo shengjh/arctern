@@ -382,7 +382,7 @@ if __name__ == "__main__":
     parse_args(sys.argv[1:])
     if to_hdfs:
         hdfs_url = output_path.split("/", 1)[0]
-        client_hdfs = InsecureClient(hdfs_url)
+        client_hdfs = InsecureClient('http://' + hdfs_url)
         client_hdfs.makedirs(output_path)
     else:
         os.makedirs(output_path, exist_ok=True)
