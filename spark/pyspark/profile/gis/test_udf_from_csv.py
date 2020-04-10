@@ -28,6 +28,7 @@ output_path = ""
 test_name = []
 hdfs_url = ""
 client_hdfs = None
+to_hdfs = False
 
 
 def is_hdfs(path):
@@ -46,8 +47,8 @@ def timmer(fun1):
         res = fun1(*args, **kwargs)
         stop_time = time.time()
         dur = stop_time - start_time
-        if is_hdfs(output_path):
-            with client_hdfs.write(os.path.join(remove_prefix(output_path, 'hdfs://'), 'time_report.txt'),
+        if to_hdfs:
+            with client_hdfs.write(os.path.join(output_path, 'time_report.txt'),
                                    overwrite=True) as f:
                 f.write(args[0] + " ")
                 f.write(str(dur) + "\n")
@@ -421,18 +422,22 @@ def parse_args(argv):
         elif opt in ("-o", "--output"):
             global output_path
             output_path = arg
-    global hdfs_url
-    hdfs_url = "http://" + remove_prefix(output_path, "hdfs://").split("/", 1)[0]
+    global to_hdfs
+    to_hdfs = is_hdfs(output_path)
+    if is_hdfs(output_path):
+        global hdfs_url
+        output_path = remove_prefix(output_path, "hdfs://")
+        hdfs_url = "http://" + output_path.split("/", 1)[0]
+        output_path = output_path[output_path.find('/'):]
 
 
 if __name__ == "__main__":
     parse_args(sys.argv[1:])
-    actual_out_path = remove_prefix(output_path, "hdfs://")
-    if is_hdfs(output_path):
+    if to_hdfs:
         client_hdfs = hdfs.InsecureClient(hdfs_url)
-        client_hdfs.makedirs(actual_out_path)
+        client_hdfs.makedirs(output_path)
     else:
-        os.makedirs(actual_out_path, exist_ok=True)
+        os.makedirs(output_path, exist_ok=True)
 
     spark_session = SparkSession \
         .builder \

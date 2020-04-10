@@ -47,9 +47,9 @@ def parse_args(argv):
             global test_name
             test_name = arg.split(',')
     global output_path
-    output_path = remove_prefix(os.path.join(tmp_path, str(rows)), "hdfs://")
     if to_hdfs:
         global hdfs_url
+        output_path = remove_prefix(os.path.join(tmp_path, str(rows)), "hdfs://")
         hdfs_url = "http://" + output_path.split("/", 1)[0]
         output_path = output_path[output_path.find('/'):]
 
