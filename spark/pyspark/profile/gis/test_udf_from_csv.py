@@ -50,8 +50,8 @@ def timmer(fun1):
         if to_hdfs:
             with client_hdfs.write(os.path.join(output_path, 'time_report.txt'),
                                    overwrite=True) as f:
-                f.write(args[0] + " ")
-                f.write(str(dur) + "\n")
+                f.write(str.encode(args[0] + " "))
+                f.write(str.encode(str(dur) + "\n"))
         else:
             with open(os.path.join(output_path, 'time_report.txt'), 'w') as f:
                 f.write(args[0] + " ")
