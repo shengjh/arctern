@@ -431,7 +431,6 @@ if __name__ == "__main__":
     spark_session = SparkSession \
         .builder \
         .appName("Python Arrow-in-Spark example") \
-        .config("spark.python.profile", "true") \
         .getOrCreate()
 
     spark_session.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
@@ -473,7 +472,5 @@ if __name__ == "__main__":
     # run_st_geomfromwkt(spark_session)
     # run_st_geomfromtext(spark_session)
     # run_st_astext(spark_session)
-
-    spark_session.sparkContext.show_profiles()
 
     spark_session.stop()

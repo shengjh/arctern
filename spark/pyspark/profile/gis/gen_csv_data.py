@@ -1,24 +1,36 @@
 import os
 import sys
 
-row_per_batch = 100000
+row_per_batch = 1000000
 rows = 0
-hdfs_url = ""
-data_path = ""
+to_hdfs = False
+output_path = ""
 test_name = []
 client_hdfs = None
+
+
+def is_hdfs(path):
+    return path.startswith("hdfs://")
+
+
+def remove_prefix(text, prefix):
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text
 
 
 def parse_args(argv):
     import getopt
     try:
-        opts, args = getopt.getopt(argv, "hr:u:p:f:", ["rows=", "hdfs url", "path=", "function name"])
+        opts, args = getopt.getopt(argv, "hr:p:f:", ["rows=", "path", "function"])
     except getopt.GetoptError:
-        print('gen_data.py -r <rows> -f <hdfs url> -p <data_path> -f <function name>')
+        print('python gen_csv_data.py -r <rows> -p <output path> -f <function name>')
         sys.exit(2)
+
+    tmp_path = ""
     for opt, arg in opts:
         if opt == '-h':
-            print('gen_data.py -r <rows> -f <hdfs url> -p <data_path> -f <function name>')
+            print('python gen_csv_data.py -r <rows> -p <output path> -f <function name>')
             sys.exit()
         elif opt in ("-r", "--rows"):
             global rows
@@ -27,15 +39,14 @@ def parse_args(argv):
             if rows < row_per_batch:
                 row_per_batch = rows
         elif opt in ("-p", "--path"):
-            global data_path
-            data_path = arg
+            global to_hdfs
+            tmp_path = arg
+            to_hdfs = is_hdfs(tmp_path)
         elif opt in ("-f", "--function"):
             global test_name
             test_name = arg.split(',')
-        elif opt in ("-u", "--url"):
-            global hdfs_url
-            hdfs_url = arg
-    data_path = os.path.join(data_path, str(rows))
+    global output_path
+    output_path = remove_prefix(os.path.join(tmp_path, str(rows)), "hdfs://")
 
 
 import pandas as pd
@@ -48,9 +59,8 @@ class _OneColDecorator(object):
         self._file_name = f.__name__[4:] + '.csv'
 
     def __call__(self):
-        total = rows
-        hdfs_file = os.path.join(data_path, self._file_name)
-        with client_hdfs.write(hdfs_file, overwrite=True, encoding='utf-8') as writer:
+        def df_to_writer(writer):
+            total = rows
             while True:
                 geos = [self._line] * row_per_batch
                 df = pd.DataFrame(data={'geos': geos})
@@ -61,6 +71,14 @@ class _OneColDecorator(object):
                 total -= row_per_batch
                 if total <= 0:
                     break
+
+        file = os.path.join(output_path, self._file_name)
+        if to_hdfs:
+            with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
+                df_to_writer(writer)
+        else:
+            with open(file, "w") as writter:
+                df_to_writer(writter)
 
 
 def OneColDecorator(f=None, line=''):
@@ -80,9 +98,8 @@ class _TwoColDecorator(object):
         self._file_name = f.__name__[4:] + '.csv'
 
     def __call__(self):
-        total = rows
-        hdfs_file = os.path.join(data_path, self._file_name)
-        with client_hdfs.write(hdfs_file, overwrite=True, encoding='utf-8') as writer:
+        def df_to_writer(writer):
+            total = rows
             while True:
                 left = [self._left] * row_per_batch
                 right = [self._right] * row_per_batch
@@ -94,6 +111,14 @@ class _TwoColDecorator(object):
                 total -= row_per_batch
                 if total <= 0:
                     break
+
+        file = os.path.join(output_path, self._file_name)
+        if to_hdfs:
+            with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
+                df_to_writer(writer)
+        else:
+            with open(file, "w") as writter:
+                df_to_writer(writter)
 
 
 def TwoColDecorator(f=None, left='', right=''):
@@ -162,9 +187,30 @@ def gen_st_simplify_preserve_topology():
     pass
 
 
-@
 def gen_st_polygon_from_envelope():
-    pass
+    def df_to_writer(writer):
+        total = rows
+        while True:
+            min_x = [1.0] * row_per_batch
+            min_y = [3.0] * row_per_batch
+            max_x = [5.0] * row_per_batch
+            max_y = [7.0] * row_per_batch
+            df = pd.DataFrame(data={'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y})
+            if total == rows:
+                df.to_csv(writer, index=False)
+            else:
+                df.to_csv(writer, index=False, header=False)
+            total -= row_per_batch
+            if total <= 0:
+                break
+
+    file = os.path.join(output_path, 'st_polygon_from_envelope.csv')
+    if to_hdfs:
+        with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
+            df_to_writer(writer)
+    else:
+        with open(file, "w") as writter:
+            df_to_writer(writter)
 
 
 @TwoColDecorator(
@@ -218,61 +264,76 @@ def gen_st_length():
 def gen_st_hausdorffdistance():
     pass
 
+
 @OneColDecorator(line='GEOMETRYCOLLECTION(LINESTRING(2.5 3,-2 1.5), POLYGON((0 1,1 3,1 -2,0 1)))')
 def gen_st_convexhull():
     pass
+
 
 @OneColDecorator(line='LINESTRING(77.29 29.07,77.42 29.26,77.27 29.31,77.29 29.07)')
 def gen_st_npoints():
     pass
 
+
 @OneColDecorator(line='multipolygon (((0 0, 10 0, 10 10, 0 10, 0 0), (11 11, 20 11, 20 20, 20 11, 11 11)))')
 def gen_st_envelope():
     pass
+
 
 @OneColDecorator(line='POLYGON((0 0,1 0,1 1,0 0))')
 def gen_st_buffer():
     pass
 
+
 @OneColDecorator(line='POLYGON ((1 1,1 2,2 2,2 1,1 1))')
 def gen_st_union_aggr():
     pass
+
 
 @OneColDecorator(line='POLYGON ((0 0,4 0,4 4,0 4,0 0))')
 def gen_st_envelope_aggr():
     pass
 
+
 @OneColDecorator(line='POINT (10 10)')
 def gen_st_transform():
     pass
+
 
 @OneColDecorator(line='CURVEPOLYGON(CIRCULARSTRING(0 0, 4 0, 4 4, 0 4, 0 0))')
 def gen_st_curvetoline():
     pass
 
+
 @OneColDecorator(line="{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]}")
 def gen_st_geomfromgeojson():
     pass
+
 
 @OneColDecorator(line='POINT (30 10)')
 def gen_st_pointfromtext():
     pass
 
+
 @OneColDecorator(line='POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))')
 def gen_st_polygonfromtext():
     pass
+
 
 @OneColDecorator(line='LINESTRING (0 0, 0 1, 1 1, 1 0)')
 def gen_st_linestringfromtext():
     pass
 
+
 @OneColDecorator(line='POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))')
 def gen_st_geomfromwkt():
     pass
 
+
 @OneColDecorator(line='POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))')
 def gen_st_geomfromtext():
     pass
+
 
 @OneColDecorator(line='POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))')
 def gen_st_astext():
@@ -319,7 +380,12 @@ funcs = {
 
 if __name__ == "__main__":
     parse_args(sys.argv[1:])
-    client_hdfs = InsecureClient(hdfs_url)
+    if to_hdfs:
+        hdfs_url = output_path.split("/", 1)[0]
+        client_hdfs = InsecureClient(hdfs_url)
+        client_hdfs.makedirs(output_path)
+    else:
+        os.makedirs(output_path, exist_ok=True)
     test_name = test_name or funcs.keys()
     for name in test_name:
         funcs[name]()
