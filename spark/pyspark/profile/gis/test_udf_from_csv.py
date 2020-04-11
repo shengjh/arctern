@@ -93,7 +93,7 @@ def calculate_envelope_agg_with_timmer(func_name, spark, sql):
     rdf = envelope_aggr(df, "geos")
 
 
-def calculate_envelope_agg(func_name, spark, sql):
+def calculate_envelope_agg(spark, sql):
     df = spark.sql(sql)
     rdf = envelope_aggr(df, "geos")
 
@@ -443,7 +443,7 @@ def run_st_envelope_aggr(spark):
     file_path = os.path.join(data_path, 'st_envelope_aggr.csv')
     envelope_aggr_df = spark.read.csv(file_path, schema='geos string')
     envelope_aggr_df.createOrReplaceTempView('envelope_aggr')
-    sql = "select ST_Envelope_Aggr(ST_GeomFromText(geos)) from envelope_aggr"
+    sql = "select ST_Envelope_Aggr(ST_GeomFromText(geos)) as geos from envelope_aggr"
     calculate_envelope_agg(spark, sql)
     calculate_envelope_agg_with_timmer('st_envelope_aggr', spark, sql)
 
