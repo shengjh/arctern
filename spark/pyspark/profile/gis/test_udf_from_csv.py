@@ -47,9 +47,9 @@ def timmer(fun1):
         res = fun1(*args, **kwargs)
         stop_time = time.time()
         dur = stop_time - start_time
-        report_file_name = time.strftime("%Y-%m-%d-%H:%M:%S-", time.localtime()) + 'time_report.txt'
+        report_file_name = time.strftime("%Y-%m-%d-%H:%M:%S-", time.localtime()) + 'report.txt'
         if to_hdfs:
-            with client_hdfs.write(os.path.join(output_path, report_file_name)) as f:
+            with client_hdfs.write(os.path.join(output_path, report_file_name), overwrite=True) as f:
                 f.write(str.encode(args[0] + " "))
                 f.write(str.encode(str(dur) + "\n"))
         else:
