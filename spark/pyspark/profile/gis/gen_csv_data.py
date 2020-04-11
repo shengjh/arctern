@@ -28,7 +28,6 @@ def parse_args(argv):
         print('python gen_csv_data.py -r <rows> -p <output path> -f <function name>')
         sys.exit(2)
 
-    tmp_path = ""
     for opt, arg in opts:
         if opt == '-h':
             print('python gen_csv_data.py -r <rows> -p <output path> -f <function name>')
@@ -40,16 +39,16 @@ def parse_args(argv):
             if rows < row_per_batch:
                 row_per_batch = rows
         elif opt in ("-p", "--path"):
-            global to_hdfs
-            tmp_path = arg
-            to_hdfs = is_hdfs(tmp_path)
+            global to_hdfs, output_path
+            output_path = arg
+            to_hdfs = is_hdfs(output_path)
         elif opt in ("-f", "--function"):
             global test_name
             test_name = arg.split(',')
-    global output_path
+    output_path = os.path.join(output_path, str(rows))
     if to_hdfs:
         global hdfs_url
-        output_path = remove_prefix(os.path.join(tmp_path, str(rows)), "hdfs://")
+        output_path = remove_prefix(output_path, "hdfs://")
         hdfs_url = "http://" + output_path.split("/", 1)[0]
         output_path = output_path[output_path.find('/'):]
 
