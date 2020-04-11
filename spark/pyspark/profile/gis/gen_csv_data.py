@@ -68,10 +68,10 @@ class _OneColDecorator(object):
             while True:
                 geos = [self._line] * row_per_batch
                 df = pd.DataFrame(data={'geos': geos})
-                if total == rows:
-                    df.to_csv(writer, index=False)
-                else:
-                    df.to_csv(writer, index=False, header=False)
+                # if total == rows:
+                #     df.to_csv(writer, index=False)
+                # else:
+                df.to_csv(writer, index=False, header=False)
                 total -= row_per_batch
                 if total <= 0:
                     break
@@ -108,10 +108,10 @@ class _TwoColDecorator(object):
                 left = [self._left] * row_per_batch
                 right = [self._right] * row_per_batch
                 df = pd.DataFrame(data={'left': left, 'right': right})
-                if total == rows:
-                    df.to_csv(writer, index=False)
-                else:
-                    df.to_csv(writer, index=False, header=False)
+                # if total == rows:
+                #     df.to_csv(writer, index=False)
+                # else:
+                df.to_csv(writer, index=False, header=False)
                 total -= row_per_batch
                 if total <= 0:
                     break
@@ -200,10 +200,10 @@ def gen_st_polygon_from_envelope():
             max_x = [5.0] * row_per_batch
             max_y = [7.0] * row_per_batch
             df = pd.DataFrame(data={'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y})
-            if total == rows:
-                df.to_csv(writer, index=False)
-            else:
-                df.to_csv(writer, index=False, header=False)
+            # if total == rows:
+            #     df.to_csv(writer, index=False)
+            # else:
+            df.to_csv(writer, index=False, header=False)
             total -= row_per_batch
             if total <= 0:
                 break
