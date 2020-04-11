@@ -29,6 +29,7 @@ test_name = []
 hdfs_url = ""
 client_hdfs = None
 to_hdfs = False
+report_file_path = ""
 
 
 def is_hdfs(path):
@@ -47,11 +48,7 @@ def timmer(fun1):
         res = fun1(*args, **kwargs)
         stop_time = time.time()
         dur = stop_time - start_time
-        report_file_path = os.path.join(output_path, time.strftime("%Y-%m-%d-", time.localtime()) + 'report.txt')
         if to_hdfs:
-            if client_hdfs.status(report_file_path, strict=False) is None:
-                with client_hdfs.write(report_file_path, append=False) as f:
-                    pass
             with client_hdfs.write(report_file_path, append=True) as f:
                 f.write(str.encode(args[0] + " "))
                 f.write(str.encode(str(dur) + "\n"))
@@ -492,8 +489,9 @@ def parse_args(argv):
         elif opt in ("-o", "--output"):
             global output_path
             output_path = arg
-    global to_hdfs
+    global to_hdfs, report_file_path
     to_hdfs = is_hdfs(output_path)
+    report_file_path = os.path.join(output_path, time.strftime("%Y-%m-%d-", time.localtime()) + 'report.txt')
     if is_hdfs(output_path):
         global hdfs_url
         output_path = remove_prefix(output_path, "hdfs://")
@@ -506,6 +504,9 @@ if __name__ == "__main__":
     if to_hdfs:
         client_hdfs = hdfs.InsecureClient(hdfs_url)
         client_hdfs.makedirs(output_path)
+        # create report file in hdfs
+        with client_hdfs.write(report_file_path, append=False) as f:
+            pass
     else:
         os.makedirs(output_path, exist_ok=True)
 
