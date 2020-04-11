@@ -47,9 +47,12 @@ def timmer(fun1):
         res = fun1(*args, **kwargs)
         stop_time = time.time()
         dur = stop_time - start_time
-        report_file_name = time.strftime("%Y-%m-%d-", time.localtime()) + 'report.txt'
+        report_file_path = os.path.join(output_path, time.strftime("%Y-%m-%d-", time.localtime()) + 'report.txt')
         if to_hdfs:
-            with client_hdfs.write(os.path.join(output_path, report_file_name), append=True) as f:
+            if client_hdfs.status(report_file_path) is None:
+                with client_hdfs.write(report_file_path, append=False) as f:
+                    pass
+            with client_hdfs.write(report_file_path, append=True) as f:
                 f.write(str.encode(args[0] + " "))
                 f.write(str.encode(str(dur) + "\n"))
         else:
