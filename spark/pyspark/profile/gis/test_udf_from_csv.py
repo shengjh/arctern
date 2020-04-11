@@ -505,7 +505,7 @@ if __name__ == "__main__":
         client_hdfs = hdfs.InsecureClient(hdfs_url)
         client_hdfs.makedirs(output_path)
         # create report file in hdfs
-        with client_hdfs.write(report_file_path, overwrite=True) as f:
+        with client_hdfs.write(report_file_path, append=False) as f:
             pass
     else:
         os.makedirs(output_path, exist_ok=True)
