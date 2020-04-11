@@ -98,6 +98,16 @@ def calculate_envelope_agg(func_name, spark, sql):
     rdf = envelope_aggr(df, "geos")
 
 
+def test_log(f):
+    def wrapper(*args, **kwargs):
+        print("--------Start test", f.__name__ + "--------")
+        f(*args, **kwargs)
+        print("--------Finish test", f.__name__ + "--------")
+
+    return wrapper
+
+
+@test_log
 def run_st_point(spark):
     file_path = os.path.join(data_path, 'st_point.csv')
     points_df = spark.read.csv(file_path, schema='x double, y double').cache()
@@ -107,6 +117,7 @@ def run_st_point(spark):
     calculate_with_timmer('st_point', spark, sql)
 
 
+@test_log
 def run_st_geomfromgeojson(spark):
     file_path = os.path.join(data_path, 'st_geomfromgeojson.csv')
     json_df = spark.read.csv(file_path, schema="json string").cache()
@@ -116,6 +127,7 @@ def run_st_geomfromgeojson(spark):
     calculate_with_timmer('st_geomfromgeojson', spark, sql)
 
 
+@test_log
 def run_st_pointfromtext(spark):
     file_path = os.path.join(data_path, 'st_pointfromtext.csv')
     data_df = spark.read.csv(file_path, schema="data string").cache()
@@ -125,6 +137,7 @@ def run_st_pointfromtext(spark):
     calculate_with_timmer('st_pointfromtext', spark, sql)
 
 
+@test_log
 def run_st_polygonfromtext(spark):
     file_path = os.path.join(data_path, 'st_polygonfromtext.csv')
     data_df = spark.read.csv(file_path, schema="data string").cache()
@@ -134,6 +147,7 @@ def run_st_polygonfromtext(spark):
     calculate_with_timmer('st_polygonfromtext', spark, sql)
 
 
+@test_log
 def run_st_astext(spark):
     file_path = os.path.join(data_path, 'st_astext.csv')
     data_df = spark.read.csv(file_path, schema="data string").cache()
@@ -143,6 +157,7 @@ def run_st_astext(spark):
     calculate_with_timmer('st_astext', spark, sql)
 
 
+@test_log
 def run_st_precision_reduce(spark):
     file_path = os.path.join(data_path, 'st_precision_reduce.csv')
     precision_reduce_df = spark.read.csv(file_path, schema="geos string").cache()
@@ -152,6 +167,7 @@ def run_st_precision_reduce(spark):
     calculate_with_timmer('st_precision_reduce', spark, sql)
 
 
+@test_log
 def run_st_linestringfromtext(spark):
     file_path = os.path.join(data_path, 'st_linestringfromtext.csv')
     data_df = spark.read.csv(file_path, schema="data string").cache()
@@ -161,6 +177,7 @@ def run_st_linestringfromtext(spark):
     calculate_with_timmer('st_linestringfromtext', spark, sql)
 
 
+@test_log
 def run_st_geomfromwkt(spark):
     file_path = os.path.join(data_path, 'st_geomfromwkt.csv')
     data_df = spark.read.csv(file_path, schema="data string").cache()
@@ -170,6 +187,7 @@ def run_st_geomfromwkt(spark):
     calculate_with_timmer('st_geomfromwkt', spark, sql)
 
 
+@test_log
 def run_st_geomfromtext(spark):
     file_path = os.path.join(data_path, 'st_geomfromtext.csv')
     data_df = spark.read.csv(file_path, schema="data string").cache()
@@ -179,6 +197,7 @@ def run_st_geomfromtext(spark):
     calculate_with_timmer('st_geomfromtext', spark, sql)
 
 
+@test_log
 def run_st_intersection(spark):
     file_path = os.path.join(data_path, 'st_intersection.csv')
     intersection_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -188,6 +207,7 @@ def run_st_intersection(spark):
     calculate_with_timmer('st_intersection', spark, sql)
 
 
+@test_log
 def run_st_isvalid(spark):
     file_path = os.path.join(data_path, 'st_isvalid.csv')
     valid_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -197,6 +217,7 @@ def run_st_isvalid(spark):
     calculate_with_timmer('st_isvalid', spark, sql)
 
 
+@test_log
 def run_st_equals(spark):
     file_path = os.path.join(data_path, 'st_equals.csv')
     equals_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -206,6 +227,7 @@ def run_st_equals(spark):
     calculate_with_timmer('st_equals', spark, sql)
 
 
+@test_log
 def run_st_touches(spark):
     file_path = os.path.join(data_path, 'st_touches.csv')
     touches_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -215,6 +237,7 @@ def run_st_touches(spark):
     calculate_with_timmer('st_touches', spark, sql)
 
 
+@test_log
 def run_st_overlaps(spark):
     file_path = os.path.join(data_path, 'st_overlaps.csv')
     overlaps_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -224,6 +247,7 @@ def run_st_overlaps(spark):
     calculate_with_timmer('st_overlaps', spark, sql)
 
 
+@test_log
 def run_st_crosses(spark):
     file_path = os.path.join(data_path, 'st_crosses.csv')
     crosses_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -233,6 +257,7 @@ def run_st_crosses(spark):
     calculate_with_timmer('st_crosses', spark, sql)
 
 
+@test_log
 def run_st_issimple(spark):
     file_path = os.path.join(data_path, 'st_issimple.csv')
     simple_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -242,6 +267,7 @@ def run_st_issimple(spark):
     calculate_with_timmer('st_issimple', spark, sql)
 
 
+@test_log
 def run_st_geometry_type(spark):
     file_path = os.path.join(data_path, 'st_geometry_type.csv')
     geometry_type_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -251,6 +277,7 @@ def run_st_geometry_type(spark):
     calculate_with_timmer('st_geometry_type', spark, sql)
 
 
+@test_log
 def run_st_make_valid(spark):
     file_path = os.path.join(data_path, 'st_make_valid.csv')
     make_valid_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -260,6 +287,7 @@ def run_st_make_valid(spark):
     calculate_with_timmer('st_make_valid', spark, sql)
 
 
+@test_log
 def run_st_simplify_preserve_topology(spark):
     file_path = os.path.join(data_path, 'st_simplify_preserve_topology.csv')
     simplify_preserve_topology_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -269,6 +297,7 @@ def run_st_simplify_preserve_topology(spark):
     calculate_with_timmer('st_simplify_preserve_topology', spark, sql)
 
 
+@test_log
 def run_st_polygon_from_envelope(spark):
     file_path = os.path.join(data_path, 'st_polygon_from_envelope.csv')
     polygon_from_envelope_df = spark.read.csv(file_path,
@@ -279,6 +308,7 @@ def run_st_polygon_from_envelope(spark):
     calculate_with_timmer('st_polygon_from_envelope', spark, sql)
 
 
+@test_log
 def run_st_contains(spark):
     file_path = os.path.join(data_path, 'st_contains.csv')
     contains_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -288,6 +318,7 @@ def run_st_contains(spark):
     calculate_with_timmer('st_contains', spark, sql)
 
 
+@test_log
 def run_st_intersects(spark):
     file_path = os.path.join(data_path, 'st_intersects.csv')
     intersects_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -297,6 +328,7 @@ def run_st_intersects(spark):
     calculate_with_timmer('st_intersects', spark, sql)
 
 
+@test_log
 def run_st_within(spark):
     file_path = os.path.join(data_path, 'st_within.csv')
     within_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -306,6 +338,7 @@ def run_st_within(spark):
     calculate_with_timmer('st_within', spark, sql)
 
 
+@test_log
 def run_st_distance(spark):
     file_path = os.path.join(data_path, 'st_distance.csv')
     distance_df = spark.read.csv(file_path, schema="left string, right string").cache()
@@ -315,6 +348,7 @@ def run_st_distance(spark):
     calculate_with_timmer('st_distance', spark, sql)
 
 
+@test_log
 def run_st_area(spark):
     file_path = os.path.join(data_path, 'st_area.csv')
     area_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -324,6 +358,7 @@ def run_st_area(spark):
     calculate_with_timmer('st_area', spark, sql)
 
 
+@test_log
 def run_st_centroid(spark):
     file_path = os.path.join(data_path, 'st_centroid.csv')
     centroid_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -333,6 +368,7 @@ def run_st_centroid(spark):
     calculate_with_timmer('st_centroid', spark, sql)
 
 
+@test_log
 def run_st_length(spark):
     file_path = os.path.join(data_path, 'st_length.csv')
     length_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -342,6 +378,7 @@ def run_st_length(spark):
     calculate_with_timmer('st_length', spark, sql)
 
 
+@test_log
 def run_st_hausdorffdistance(spark):
     file_path = os.path.join(data_path, 'st_hausdorffdistance.csv')
     hausdorff_df = spark.read.csv(file_path, schema="geo1 string, geo2 string").cache()
@@ -351,6 +388,7 @@ def run_st_hausdorffdistance(spark):
     calculate_with_timmer('st_hausdorffdistance', spark, sql)
 
 
+@test_log
 def run_st_convexhull(spark):
     file_path = os.path.join(data_path, 'st_convexhull.csv')
     convexhull_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -360,6 +398,7 @@ def run_st_convexhull(spark):
     calculate_with_timmer('st_convexhull', spark, sql)
 
 
+@test_log
 def run_st_npoints(spark):
     file_path = os.path.join(data_path, 'st_npoints.csv')
     npoints_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -369,6 +408,7 @@ def run_st_npoints(spark):
     calculate_with_timmer('st_npoints', spark, sql)
 
 
+@test_log
 def run_st_envelope(spark):
     file_path = os.path.join(data_path, 'st_envelope.csv')
     envelope_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -378,6 +418,7 @@ def run_st_envelope(spark):
     calculate_with_timmer('st_envelope', spark, sql)
 
 
+@test_log
 def run_st_buffer(spark):
     file_path = os.path.join(data_path, 'st_buffer.csv')
     buffer_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -387,6 +428,7 @@ def run_st_buffer(spark):
     calculate_with_timmer('st_buffer', spark, sql)
 
 
+@test_log
 def run_st_union_aggr(spark):
     file_path = os.path.join(data_path, 'st_union_aggr.csv')
     union_aggr_df1 = spark.read.csv(file_path, schema='geos string').cache()
@@ -396,6 +438,7 @@ def run_st_union_aggr(spark):
     calculate_union_agg_with_timmer('st_union_aggr', spark, sql)
 
 
+@test_log
 def run_st_envelope_aggr(spark):
     file_path = os.path.join(data_path, 'st_envelope_aggr.csv')
     envelope_aggr_df = spark.read.csv(file_path, schema='geos string')
@@ -405,6 +448,7 @@ def run_st_envelope_aggr(spark):
     calculate_envelope_agg_with_timmer('st_envelope_aggr', spark, sql)
 
 
+@test_log
 def run_st_transform(spark):
     file_path = os.path.join(data_path, 'st_transform.csv')
     buffer_df = spark.read.csv(file_path, schema='geos string').cache()
@@ -414,6 +458,7 @@ def run_st_transform(spark):
     calculate_with_timmer('st_transform', spark, sql)
 
 
+@test_log
 def run_st_curvetoline(spark):
     file_path = os.path.join(data_path, 'st_pointfromtext.csv')
     buffer_df = spark.read.csv(file_path, schema='geos string').cache()
