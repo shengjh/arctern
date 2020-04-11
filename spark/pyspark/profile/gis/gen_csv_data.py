@@ -83,6 +83,7 @@ class _OneColDecorator(object):
         else:
             with open(file, "w") as writter:
                 df_to_writer(writter)
+        print("Generate ", self._file_name, " done.")
 
 
 def OneColDecorator(f=None, line=''):
@@ -123,6 +124,7 @@ class _TwoColDecorator(object):
         else:
             with open(file, "w") as writter:
                 df_to_writer(writter)
+        print("Generate ", self._file_name, " done.")
 
 
 def TwoColDecorator(f=None, left='', right=''):
@@ -215,6 +217,7 @@ def gen_st_polygon_from_envelope():
     else:
         with open(file, "w") as writter:
             df_to_writer(writter)
+    print("Generate st_polygon_from_envelope.csv done.")
 
 
 @TwoColDecorator(
