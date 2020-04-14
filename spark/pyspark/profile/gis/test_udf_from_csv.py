@@ -49,7 +49,10 @@ def timmer(fun1):
         dur = stop_time - start_time
         report_file_path = os.path.join(output_path, args[0] + '.txt')
         if to_hdfs:
-            with client_hdfs.write(report_file_path, append=True) as f:
+            append = False
+            if client_hdfs.status(report_file_path, strict=False):
+                append = True
+            with client_hdfs.write(report_file_path, append=append) as f:
                 f.write(str.encode(args[0] + " "))
                 f.write(str.encode(str(dur) + "\n"))
         else:
