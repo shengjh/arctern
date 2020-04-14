@@ -1,7 +1,7 @@
 import os
 import sys
 
-row_per_batch = 1000000
+row_per_batch = 10000000
 rows = 0
 to_hdfs = False
 output_path = ""
@@ -45,7 +45,8 @@ def parse_args(argv):
         elif opt in ("-f", "--function"):
             global test_name
             test_name = arg.split(',')
-    output_path = os.path.join(output_path, str(rows))
+    from math import log, ceil
+    output_path = os.path.join(output_path, '10_' + str(ceil(log(rows, 10))))
     if to_hdfs:
         global hdfs_url
         output_path = remove_prefix(output_path, "hdfs://")
@@ -65,12 +66,15 @@ class _OneColDecorator(object):
     def __call__(self):
         def df_to_writer(writer):
             total = rows
+            geos = [self._line] * min(total, row_per_batch)
+            df = pd.DataFrame(data={'geos': geos})
             while True:
-                geos = [self._line] * row_per_batch
-                df = pd.DataFrame(data={'geos': geos})
                 # if total == rows:
                 #     df.to_csv(writer, index=False)
                 # else:
+                # generate new size data
+                if total < row_per_batch:
+                    df = pd.DataFrame(data={'geos': [self._line] * total})
                 df.to_csv(writer, index=False, header=False)
                 total -= row_per_batch
                 if total <= 0:
@@ -105,13 +109,16 @@ class _TwoColDecorator(object):
     def __call__(self):
         def df_to_writer(writer):
             total = rows
+            left = [self._left] * min(total, row_per_batch)
+            right = [self._right] * min(total, row_per_batch)
+            df = pd.DataFrame(data={'left': left, 'right': right})
             while True:
-                left = [self._left] * row_per_batch
-                right = [self._right] * row_per_batch
-                df = pd.DataFrame(data={'left': left, 'right': right})
                 # if total == rows:
                 #     df.to_csv(writer, index=False)
                 # else:
+                if total < row_per_batch:
+                    df = pd.DataFrame(data={'left': [self._left] * total, 'right': [self._right] * total})
+
                 df.to_csv(writer, index=False, header=False)
                 total -= row_per_batch
                 if total <= 0:
@@ -196,15 +203,20 @@ def gen_st_simplify_preserve_topology():
 def gen_st_polygon_from_envelope():
     def df_to_writer(writer):
         total = rows
+        min_x = [1.0] * min(total, row_per_batch)
+        min_y = [3.0] * min(total, row_per_batch)
+        max_x = [5.0] * min(total, row_per_batch)
+        max_y = [7.0] * min(total, row_per_batch)
+        df = pd.DataFrame(data={'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y})
+
         while True:
-            min_x = [1.0] * row_per_batch
-            min_y = [3.0] * row_per_batch
-            max_x = [5.0] * row_per_batch
-            max_y = [7.0] * row_per_batch
-            df = pd.DataFrame(data={'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y})
             # if total == rows:
             #     df.to_csv(writer, index=False)
             # else:
+
+            if total < row_per_batch:
+                df = pd.DataFrame(data={'min_x': [1.0] * total, 'min_y': [3.0] * total, 'max_x': [5.0] * total,
+                                        'max_y': [7.0] * total})
             df.to_csv(writer, index=False, header=False)
             total -= row_per_batch
             if total <= 0:
