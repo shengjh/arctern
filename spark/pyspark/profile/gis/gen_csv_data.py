@@ -67,18 +67,26 @@ class _OneColDecorator(object):
         def df_to_writer(writer):
             total = rows
             geos = [self._line] * min(total, row_per_batch)
-            df = pd.DataFrame(data={'geos': geos})
-            while True:
+            geos_str = '\n'.join(geos)
+            geos = None
+            # df = pd.DataFrame(data={'geos': geos})
+            has_remain = total > 0
+            while has_remain:
                 # if total == rows:
                 #     df.to_csv(writer, index=False)
                 # else:
                 # generate new size data
                 if total < row_per_batch:
-                    df = pd.DataFrame(data={'geos': [self._line] * total})
-                df.to_csv(writer, index=False, header=False)
+                    # df = pd.DataFrame(data={'geos': [self._line] * total})
+                    geos = [self._line] * total
+                    geos_str = '\n'.join(geos)
+                    geos = None
+                # df.to_csv(writer, index=False, header=False)
+
                 total -= row_per_batch
-                if total <= 0:
-                    break
+                has_remain = total > 0
+                new_line = '\n' if has_remain else ''
+                writer.write(geos_str + new_line)
 
         file = os.path.join(output_path, self._file_name)
         if to_hdfs:
@@ -100,38 +108,10 @@ def OneColDecorator(f=None, line=''):
         return wrapper
 
 
-class _TwoColDecorator(object):
+class _TwoColDecorator(_OneColDecorator):
     def __init__(self, f, left, right):
-        self._left = left
-        self._right = right
+        self._line = str(left) + ',' + str(right)
         self._file_name = f.__name__[4:] + '.csv'
-
-    def __call__(self):
-        def df_to_writer(writer):
-            total = rows
-            left = [self._left] * min(total, row_per_batch)
-            right = [self._right] * min(total, row_per_batch)
-            df = pd.DataFrame(data={'left': left, 'right': right})
-            while True:
-                # if total == rows:
-                #     df.to_csv(writer, index=False)
-                # else:
-                if total < row_per_batch:
-                    df = pd.DataFrame(data={'left': [self._left] * total, 'right': [self._right] * total})
-
-                df.to_csv(writer, index=False, header=False)
-                total -= row_per_batch
-                if total <= 0:
-                    break
-
-        file = os.path.join(output_path, self._file_name)
-        if to_hdfs:
-            with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
-                df_to_writer(writer)
-        else:
-            with open(file, "w") as writter:
-                df_to_writer(writter)
-        print("Generate ", self._file_name, " done.")
 
 
 def TwoColDecorator(f=None, left='', right=''):
@@ -203,26 +183,22 @@ def gen_st_simplify_preserve_topology():
 def gen_st_polygon_from_envelope():
     def df_to_writer(writer):
         total = rows
-        min_x = [1.0] * min(total, row_per_batch)
-        min_y = [3.0] * min(total, row_per_batch)
-        max_x = [5.0] * min(total, row_per_batch)
-        max_y = [7.0] * min(total, row_per_batch)
-        df = pd.DataFrame(data={'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y})
-
-        while True:
-            # if total == rows:
-            #     df.to_csv(writer, index=False)
-            # else:
-
+        geos = ["1.0,3.0,5.0,7.0"] * min(total, row_per_batch)
+        geos_str = '\n'.join(geos)
+        geos = None
+        has_remain = total > 0
+        while has_remain:
             if total < row_per_batch:
-                df = pd.DataFrame(data={'min_x': [1.0] * total, 'min_y': [3.0] * total, 'max_x': [5.0] * total,
-                                        'max_y': [7.0] * total})
-            df.to_csv(writer, index=False, header=False)
-            total -= row_per_batch
-            if total <= 0:
-                break
+                geos = ["1.0,3.0,5.0,7.0"] * total
+                geos_str = '\n'.join(geos)
+                geos = None
 
-    file = os.path.join(output_path, 'st_polygon_from_envelope.csv')
+            total -= row_per_batch
+            has_remain = total > 0
+            new_line = '\n' if has_remain else ''
+            writer.write(geos_str + new_line)
+
+    file = os.path.join(output_path, "st_polygon_from_envelope.csv")
     if to_hdfs:
         with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
             df_to_writer(writer)
