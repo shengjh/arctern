@@ -52,7 +52,7 @@ def parse_args(argv):
     if to_hdfs:
         global hdfs_url
         output_path = remove_prefix(output_path, "hdfs://")
-        hdfs_url = "http://" + output_path.split("/", 1)[0]
+        hdfs_url = output_path.split("/", 1)[0]
         output_path = output_path[output_path.find('/'):]
 
 
