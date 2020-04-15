@@ -8,7 +8,6 @@ to_hdfs = False
 output_path = ""
 test_name = []
 hdfs_url = ""
-client_hdfs = None
 fs = None
 
 
@@ -56,10 +55,6 @@ def parse_args(argv):
         output_path = output_path[output_path.find('/'):]
 
 
-import pandas as pd
-from hdfs import InsecureClient
-
-
 class _OneColDecorator(object):
     def __init__(self, f, line):
         self._line = line
@@ -90,8 +85,6 @@ class _OneColDecorator(object):
         if to_hdfs:
             with fs.open(file, "wb") as writer:
                 df_to_writer(writer)
-            # with client_hdfs.write(file, buffersize=10 * 1024 ** 3, overwrite=True, encoding='utf-8') as writer:
-            #     df_to_writer(writer)
         else:
             with open(file, "wb") as writter:
                 df_to_writer(writter)
@@ -357,8 +350,6 @@ if __name__ == "__main__":
     if to_hdfs:
         url, port = hdfs_url.split(':')
         fs = pa.hdfs.connect(url, int(port))
-        # client_hdfs = InsecureClient(hdfs_url)
-        # client_hdfs.makedirs(output_path)
     else:
         os.makedirs(output_path, exist_ok=True)
     test_name = test_name or funcs.keys()
