@@ -84,16 +84,16 @@ class _OneColDecorator(object):
                 total -= row_per_batch
                 has_remain = total > 0
                 new_line = '\n' if has_remain else ''
-                writer.write(geos_str + new_line)
+                writer.write((geos_str + new_line).encode('utf-8'))
 
         file = os.path.join(output_path, self._file_name)
         if to_hdfs:
-            with fs.open(file, "w") as writer:
+            with fs.open(file, "wb") as writer:
                 df_to_writer(writer)
             # with client_hdfs.write(file, buffersize=10 * 1024 ** 3, overwrite=True, encoding='utf-8') as writer:
             #     df_to_writer(writer)
         else:
-            with open(file, "w") as writter:
+            with open(file, "wb") as writter:
                 df_to_writer(writter)
         print("Generate ", self._file_name, " done.")
 
