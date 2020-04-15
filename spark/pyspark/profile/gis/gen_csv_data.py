@@ -180,37 +180,11 @@ def gen_st_simplify_preserve_topology():
     pass
 
 
+@OneColDecorator(
+    line='1.0,3.0,5.0,7.0'
+)
 def gen_st_polygon_from_envelope():
-    def df_to_writer(writer):
-        import gc
-        total = rows
-        geos = ["1.0,3.0,5.0,7.0"] * min(total, row_per_batch)
-        geos_str = '\n'.join(geos)
-        geos = None
-        del geos
-        gc.collect()
-        has_remain = total > 0
-        while has_remain:
-            if total < row_per_batch:
-                geos = ["1.0,3.0,5.0,7.0"] * total
-                geos_str = '\n'.join(geos)
-                geos = None
-                del geos
-                gc.collect()
-
-            total -= row_per_batch
-            has_remain = total > 0
-            new_line = '\n' if has_remain else ''
-            writer.write(geos_str + new_line)
-
-    file = os.path.join(output_path, "st_polygon_from_envelope.csv")
-    if to_hdfs:
-        with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
-            df_to_writer(writer)
-    else:
-        with open(file, "w") as writter:
-            df_to_writer(writter)
-    print("Generate st_polygon_from_envelope.csv done.")
+    pass
 
 
 @TwoColDecorator(
