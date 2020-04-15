@@ -86,7 +86,7 @@ class _OneColDecorator(object):
 
         file = os.path.join(output_path, self._file_name)
         if to_hdfs:
-            with client_hdfs.write(file, overwrite=True, encoding='utf-8') as writer:
+            with client_hdfs.write(file, buffersize=10 * 1024 ** 3, overwrite=True, encoding='utf-8') as writer:
                 df_to_writer(writer)
         else:
             with open(file, "w") as writter:
@@ -171,7 +171,7 @@ def gen_st_make_valid():
 
 
 @OneColDecorator(
-    line='POLYGON((8 25, 28 22, 28 20, 15 11, 33 3, 56 30, 46 33, 46 34, 47 44, 35 36, 45 33, 43 19, 29 21, 29 22, 35 26, 24 39, 8 25))')
+    line='POLYGON((8 25, 28 22, 28 20, 15 11, 33 3, 56 30, 46 33, 8 25))')
 def gen_st_simplify_preserve_topology():
     pass
 
