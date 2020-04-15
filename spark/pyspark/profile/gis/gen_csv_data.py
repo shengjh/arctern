@@ -65,10 +65,12 @@ class _OneColDecorator(object):
 
     def __call__(self):
         def df_to_writer(writer):
+            import gc
             total = rows
             geos = [self._line] * min(total, row_per_batch)
             geos_str = '\n'.join(geos)
-            geos = None
+            del geos
+            gc.collect()
             # df = pd.DataFrame(data={'geos': geos})
             has_remain = total > 0
             while has_remain:
@@ -80,7 +82,8 @@ class _OneColDecorator(object):
                     # df = pd.DataFrame(data={'geos': [self._line] * total})
                     geos = [self._line] * total
                     geos_str = '\n'.join(geos)
-                    geos = None
+                    del geos
+                    gc.collect()
                 # df.to_csv(writer, index=False, header=False)
 
                 total -= row_per_batch
