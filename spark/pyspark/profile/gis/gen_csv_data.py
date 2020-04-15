@@ -382,7 +382,7 @@ if __name__ == "__main__":
     parse_args(sys.argv[1:])
     if to_hdfs:
         url, port = hdfs_url.split(':')
-        fs = pa.hdfs.connect(url, port)
+        fs = pa.hdfs.connect(url, int(port))
         # client_hdfs = InsecureClient(hdfs_url)
         # client_hdfs.makedirs(output_path)
     else:
