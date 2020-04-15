@@ -71,20 +71,13 @@ class _OneColDecorator(object):
             geos_str = '\n'.join(geos)
             del geos
             gc.collect()
-            # df = pd.DataFrame(data={'geos': geos})
             has_remain = total > 0
             while has_remain:
-                # if total == rows:
-                #     df.to_csv(writer, index=False)
-                # else:
-                # generate new size data
                 if total < row_per_batch:
-                    # df = pd.DataFrame(data={'geos': [self._line] * total})
                     geos = [self._line] * total
                     geos_str = '\n'.join(geos)
                     del geos
                     gc.collect()
-                # df.to_csv(writer, index=False, header=False)
 
                 total -= row_per_batch
                 has_remain = total > 0
@@ -185,16 +178,21 @@ def gen_st_simplify_preserve_topology():
 
 def gen_st_polygon_from_envelope():
     def df_to_writer(writer):
+        import gc
         total = rows
         geos = ["1.0,3.0,5.0,7.0"] * min(total, row_per_batch)
         geos_str = '\n'.join(geos)
         geos = None
+        del geos
+        gc.collect()
         has_remain = total > 0
         while has_remain:
             if total < row_per_batch:
                 geos = ["1.0,3.0,5.0,7.0"] * total
                 geos_str = '\n'.join(geos)
                 geos = None
+                del geos
+                gc.collect()
 
             total -= row_per_batch
             has_remain = total > 0
