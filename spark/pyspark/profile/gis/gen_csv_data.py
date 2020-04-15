@@ -1,5 +1,6 @@
 import os
 import sys
+import pyarrow as pa
 
 row_per_batch = 10000000
 rows = 0
@@ -8,6 +9,7 @@ output_path = ""
 test_name = []
 hdfs_url = ""
 client_hdfs = None
+fs = None
 
 
 def is_hdfs(path):
@@ -86,8 +88,10 @@ class _OneColDecorator(object):
 
         file = os.path.join(output_path, self._file_name)
         if to_hdfs:
-            with client_hdfs.write(file, buffersize=10 * 1024 ** 3, overwrite=True, encoding='utf-8') as writer:
+            with fs.open(file, "w") as writer:
                 df_to_writer(writer)
+            # with client_hdfs.write(file, buffersize=10 * 1024 ** 3, overwrite=True, encoding='utf-8') as writer:
+            #     df_to_writer(writer)
         else:
             with open(file, "w") as writter:
                 df_to_writer(writter)
@@ -377,8 +381,10 @@ funcs = {
 if __name__ == "__main__":
     parse_args(sys.argv[1:])
     if to_hdfs:
-        client_hdfs = InsecureClient(hdfs_url)
-        client_hdfs.makedirs(output_path)
+        url, port = hdfs_url.split(':')
+        fs = pa.hdfs.connect(url, port)
+        # client_hdfs = InsecureClient(hdfs_url)
+        # client_hdfs.makedirs(output_path)
     else:
         os.makedirs(output_path, exist_ok=True)
     test_name = test_name or funcs.keys()
