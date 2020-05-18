@@ -71,10 +71,9 @@ def arctern_udf(*arg_types):
         @wraps(func)
         def wrapper(*warpper_args):
             import pandas as pd
-            pd_series_type = type(pd.Series([None]))
             array_len = 1
             for arg in warpper_args:
-                if isinstance(arg, pd_series_type):
+                if pd.api.types.is_list_like(arg):
                     array_len = len(arg)
                     break
             func_args = []
@@ -86,7 +85,7 @@ def arctern_udf(*arg_types):
                     assert isinstance(arg_type, str)
                     if len(arg_type) == 0:
                         func_args.append(warpper_args[func_arg_idx])
-                    elif isinstance(warpper_args[func_arg_idx], pd_series_type):
+                    elif pd.api.types.is_list_like(warpper_args[func_arg_idx]):
                         assert len(warpper_args[func_arg_idx]) == array_len
                         func_args.append(warpper_args[func_arg_idx])
                     else:
