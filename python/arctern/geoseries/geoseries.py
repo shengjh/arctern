@@ -137,7 +137,10 @@ class GeoSeries(Series):
 
         if not is_geometry_array(data):
             kwargs.pop('dtype', None)
-            s = Series(data, index=index, name=name, dtype=GeoDtype.name, **kwargs)
+            # Firstly store data in a series as object dtype
+            s = Series(data, index=index, name=name, dtype=object, **kwargs)
+            copy = kwargs.pop('copy', False)
+            s = Series(s, index=index, name=name, dtype=GeoDtype.name, copy=copy, **kwargs)
             index = s.index
             name = s.name
             data = GeoArray(s.values)
