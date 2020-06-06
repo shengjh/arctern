@@ -229,9 +229,21 @@ class GeoSeries(Series):
         :example:
         >>> from arctern import GeoSeries
         >>> s1 = GeoSeries(["POINT(1 1)", None])
-        >>> s2 = GeoSeries(["POINT(1 1)", None])
+        >>> s2 = GeoSeries(["Point(1 1)", None])
         >>> s2.equals(s1)
         True
+
+        >>> from arctern import GeoSeries
+        >>> s3 = GeoSeries(["POLYGON ((1 1,1 2,2 2,2 1))"])
+        >>> s4 = GeoSeries(["POLYGON ((1 1,1 2,2 2,2 1))"])
+        >>> s4.equals(s3)
+        True
+
+        >>> from arctern import GeoSeries
+        >>> s5 = GeoSeries(["POLYGON ((0 0,2 0,2 2,0 2,0 0))"])
+        >>> s6 = GeoSeries(["POLYGON ((0 0,0 2,2 2,2 0,0 0))"])
+        >>> s6.equals(s5)
+        False
         """
         if not isinstance(other, GeoSeries):
             return False
@@ -248,6 +260,69 @@ class GeoSeries(Series):
     ):
         """
         Fill NA values with a geometry, which can be WKT or WKB formed.
+
+        :type value: scalar, dict, Series, or DataFrame
+        :param value: Value to use to fill holes (e.g. "POINT (1 1)"), alternately a
+                      dict/Series/DataFrame of values specifying which value to use for
+                      each index (for a Series) or column (for a DataFrame).  Values not
+                      in the dict/Series/DataFrame will not be filled. This value cannot
+                      be a list.
+
+        :type method: {'backfill', 'bfill', 'pad', 'ffill', None}, default None
+        :param method: Method to use for filling holes in reindexed Series
+                       pad / ffill: propagate last valid observation forward to next valid
+                       backfill / bfill: use next valid observation to fill gap.
+
+        :type axis: {0 or ‘index’}
+        :param axis: Axis along which to fill missing values.
+
+        :type inplace: bool, default False
+        :param inplace: If True, fill in-place. Note: this will modify any
+                        other views on this object (e.g., a no-copy slice for a column
+                        in a DataFrame).
+
+        :type limit:  int, default None
+        :param limit: If method is specified, this is the maximum number of consecutive
+                      NaN values to forward/backward fill. In other words, if there is
+                      a gap with more than this number of consecutive NaNs, it will only
+                      be partially filled. If method is not specified, this is the
+                      maximum number of entries along the entire axis where NaNs will be
+                      filled. Must be greater than 0 if not None.
+
+        :type downcast: dict, default is None
+        :param downcast: A dict of item->dtype of what to downcast if possible,
+                         or the string 'infer' which will try to downcast to an appropriate
+                         equal type (e.g. float64 to int64 if possible).
+
+        :rtype: GeoSeries or None
+        :return: Object with missing values filled or None if ``inplace=True``.
+
+        :example:
+        >>> s = GeoSeries(["Point (1 1)", "POLYGON ((1 1,2 1,2 2,1 2,1 1))", None, ""])
+        >>> s
+        0                        POINT (1 1)
+        1    POLYGON ((1 1,2 1,2 2,1 2,1 1))
+        2                               None
+        3                               None
+        dtype: GeoDtype
+
+        Replace all NaN elements with WKT formed str.
+
+        >>> s.fillna("POINT (1 2)")
+        0                        POINT (1 1)
+        1    POLYGON ((1 1,2 1,2 2,1 2,1 1))
+        2                        POINT (1 2)
+        3                        POINT (1 2)
+        dtype: GeoDtype
+
+        We can also replace all NaN elements with WKB formed bytes.
+
+        >>> s.fillna(s[1])
+        0                        POINT (1 1)
+        1    POLYGON ((1 1,2 1,2 2,1 2,1 1))
+        2    POLYGON ((1 1,2 1,2 2,1 2,1 1))
+        3    POLYGON ((1 1,2 1,2 2,1 2,1 1))
+        dtype: GeoDtype
         """
         return super().fillna(value, method, axis, inplace, limit, downcast)
 
@@ -263,11 +338,14 @@ class GeoSeries(Series):
 
         :example:
         >>> from arctern import GeoSeries
-        >>> s = GeoSeries(["Point (1 1)", None])
+        >>> s = GeoSeries(["Point (1 1)", "POLYGON ((1 1,2 1,2 2,1 2,1 1))", None, ""])
         >>> s.isna()
         0    False
-        1     True
+        1    False
+        2     True
+        3     True
         dtype: bool
+
         """
         return super().isna()
 
@@ -283,10 +361,12 @@ class GeoSeries(Series):
 
         :example:
         >>> from arctern import GeoSeries
-        >>> s = GeoSeries(["POINT (1 1)", None])
-        >>> s.isna()
-        0    False
+        >>> s = GeoSeries(["Point (1 1)", "POLYGON ((1 1,2 1,2 2,1 2,1 1))", None, ""])
+        >>> s.notna()
+        0     True
         1     True
+        2    False
+        3    False
         dtype: bool
         """
         return super().notna()
@@ -1077,7 +1157,7 @@ class GeoSeries(Series):
         :example:
         >>> from pandas import Series
         >>> from arctern import GeoSeries
-        >>> json = Series(["{\"type\":\"LineString\",\"coordinates\":[[1,2],[4,5],[7,8]]}"])
+        >>> json = Series(['{"type":"LineString","coordinates":[[1,2],[4,5],[7,8]]}'])
         >>> GeoSeries.geom_from_geojson(json)
         0    LINESTRING (1 2,4 5,7 8)
         dtype: GeoDtype
