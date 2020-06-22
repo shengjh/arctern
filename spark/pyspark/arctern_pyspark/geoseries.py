@@ -103,6 +103,8 @@ class GeoSeries(Series):
                 self, kdf._internal.copy(spark_column=kdf._internal.data_spark_columns[0]), kdf
             )
 
+        self._crs = None
+        self.set_crs(crs)
     def set_crs(self, crs):
         """
         Sets the Coordinate Reference System (CRS) for all geometries in GeoSeries.
@@ -365,6 +367,10 @@ class GeoSeries(Series):
     @classmethod
     def geom_from_geojson(cls, json, crs=None):
         return _column_geo("ST_GeomFromGeoJSON", Series(json), crs=crs)
+
+    @classmethod
+    def geom_from_text(cls, text, crs=None):
+        return _column_geo("ST_GeomFromText", Series(text), crs=crs)
 
     def to_wkt(self):
         return _column_op("ST_AsText", self)
