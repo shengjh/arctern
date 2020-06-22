@@ -244,6 +244,9 @@ class GeoSeries(Series):
     def make_valid(self):
         return _column_geo("ST_MakeValid", self, crs=self._crs)
 
+    def as_geojson(self):
+        return _column_op("ST_AsGeoJSON", self)
+
     def precision_reduce(self, precision):
         return _column_geo("ST_PrecisionReduce", self, F.lit(precision), crs=self._crs)
 
