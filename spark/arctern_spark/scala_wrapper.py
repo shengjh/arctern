@@ -47,10 +47,8 @@ class GeometryUDT(UserDefinedType):
         return Row(obj.toBytes)
 
     def deserialize(self, datum):
-        if self.jvm is None:
-            self.jvm = SparkContext._active_spark_context._gateway.jvm
-            java_import(self.jvm, "org.apache.spark.sql.arctern.GeometryUDT")
-        return self.jvm.GeometryUDT.deserialize(datum[0])
+        binData = bytearray([x % 256 for x in datum])
+        return binData
 
 
 def import_scala_functions():
@@ -58,7 +56,11 @@ def import_scala_functions():
     jvm = sc._jvm
     java_import(jvm, "org.apache.spark.sql.arctern.UdtRegistratorWrapper")
     jvm.UdtRegistratorWrapper.registerUDT()
+
+    old_functions = jvm.functions
     java_import(jvm, "org.apache.spark.sql.arctern.functions")
+    jvm.gis_functions = jvm.functions
+    jvm.functions = old_functions
 
 
 def _create_unary_function(name):
@@ -112,6 +114,7 @@ _unary_functions = [
     "st_hausdorffdistance",
     "st_transform",
     "st_makevalid",
+    "st_geomfromtext",
 ]
 
 # functions that take two arguments as input
