@@ -231,7 +231,7 @@ class TestGeoMethods:
         # property
         s = GeoSeries([make_point(1, 1), None], index=index)
         s1 = s.length
-        assert s1.index.to_list() == index
+        assert (s1.index.to_numpy() == index).all()
         assert s1[index[0]] == 0
         assert pd.isna(s1[index[1]])
 
