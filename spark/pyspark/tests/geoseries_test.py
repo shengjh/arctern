@@ -18,8 +18,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from pandas.testing import assert_series_equal
-from arctern_pyspark.geoseries import GeoSeries
-from arctern_pyspark._wrapper_func import ST_GeomFromText
+from arctern_pyspark import GeoSeries
 
 
 def make_point(x, y):
@@ -30,7 +29,7 @@ def make_point(x, y):
 def sequence(request):
     if request.param == 'wkt':
         return [make_point(x, x) for x in range(5)]
-    return ST_GeomFromText([make_point(x, x) for x in range(5)]).tolist()
+    return GeoSeries.geom_from_text([make_point(x, x) for x in range(5)]).tolist()
 
 
 @pytest.fixture(params=[1, 1.0, ('1', '1')])
@@ -42,12 +41,12 @@ def wrong_type_data(request):
 def dic(request):
     if request.param == 'wkt':
         return {x: make_point(x, x) for x in range(5)}
-    return {x: ST_GeomFromText(make_point(x, x))[0] for x in range(5)}
+    return {x: GeoSeries.geom_from_text(make_point(x, x))[0] for x in range(5)}
 
 
 @pytest.fixture
 def expected_series():
-    return ST_GeomFromText([make_point(x, x) for x in range(5)])
+    return GeoSeries.geom_from_text([make_point(x, x) for x in range(5)])
 
 
 def assert_is_geoseries(s):
@@ -59,12 +58,12 @@ class TestConstructor:
     def test_from_sequence(self, sequence, expected_series):
         s = GeoSeries(sequence)
         assert_is_geoseries(s)
-        assert_series_equal(s, expected_series, check_dtype=False)
+        assert s == expected_series
 
     def test_from_dict(self, dic, expected_series):
         s = GeoSeries(dic)
         assert_is_geoseries(s)
-        assert_series_equal(s, expected_series, check_dtype=False)
+        assert s == expected_series
 
     def test_from_empty(self):
         s = GeoSeries([])
@@ -78,12 +77,7 @@ class TestConstructor:
     def test_from_series(self, expected_series):
         s = GeoSeries(expected_series)
         assert_is_geoseries(s)
-        assert_series_equal(s, expected_series, check_dtype=False)
-
-    def test_fom_geoarray(self, expected_series):
-        s = GeoSeries(expected_series.values)
-        assert_is_geoseries(s)
-        assert_series_equal(s, expected_series, check_dtype=False)
+        assert s == expected_series
 
     def test_from_wrong_type_data(self, wrong_type_data):
         with pytest.raises(TypeError):
@@ -137,7 +131,7 @@ class TestType:
         assert_is_geoseries(self.s.iloc[:4])
 
     def test_take(self):
-        assert_is_geoseries(self.s.take([0, 2, 4]))
+        assert_is_geoseries(self.s.take([0, 2, 4]).sort_index())
 
     def test_geom_method(self):
         assert_is_geoseries(self.s.buffer(0.2))
@@ -175,7 +169,7 @@ class TestPandasMethod:
         assert s.notna().tolist() == [True, False]
         assert not s.dropna().isna().any()
 
-        s1 = s.fillna(make_point(1, 1))
+        s1 = s.fillna(GeoSeries(make_point(1, 1))[0])
         s1 = s1.to_wkt()
         assert s1[0] == "POINT (1 2)"
         assert s1[1] == "POINT (1 1)"
@@ -237,7 +231,7 @@ class TestGeoMethods:
         # property
         s = GeoSeries([make_point(1, 1), None], index=index)
         s1 = s.length
-        assert s1.index.to_list() == index
+        assert (s1.index.to_numpy() == index).all()
         assert s1[index[0]] == 0
         assert pd.isna(s1[index[1]])
 

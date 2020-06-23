@@ -21,9 +21,6 @@ from databricks.koalas.series import _col, REPR_PATTERN
 from pandas.io.formats.printing import pprint_thing
 from pyspark.sql import functions as F
 
-# os.environ['PYSPARK_PYTHON'] = "/home/shengjh/miniconda3/envs/koalas/bin/python"
-# os.environ['PYSPARK_DRIVER_PYTHON'] = "/home/shengjh/miniconda3/envs/koalas/bin/python"
-
 ks.set_option('compute.ops_on_diff_frames', True)
 
 
